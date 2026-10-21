@@ -20,11 +20,12 @@ import {
   UserRound,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { ModeBadge, StatusBadge } from "@/components/status";
 import { Button } from "@/components/ui/button";
-import { ConfirmButton, Dialog, Switch, Tabs, TabsList, TabsTrigger } from "@/components/ui/overlay";
+import { ConfirmButton, Dialog, Switch } from "@/components/ui/overlay";
+import { SegmentedNav } from "@/components/ui/segmented";
 import {
   Badge,
   Card,
@@ -177,7 +178,6 @@ export function InboxClient({
   canAutomate: boolean;
   mocksAllowed: boolean;
 }) {
-  const router = useRouter();
   const path = usePathname();
   const { run } = useAction();
   const [sim, setSim] = useState(false);
@@ -210,16 +210,20 @@ export function InboxClient({
       </p>
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <Tabs value={tab} onValueChange={(v) => router.push(`${path}?tab=${v}`)}>
-          <TabsList>
-            <TabsTrigger value="all">All</TabsTrigger>
-            <TabsTrigger value="comments">Comments</TabsTrigger>
-            <TabsTrigger value="dms">DMs</TabsTrigger>
-            <TabsTrigger value="leads">Leads</TabsTrigger>
-            <TabsTrigger value="needs_human">Needs human</TabsTrigger>
-            <TabsTrigger value="automation_paused">Automation paused</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <SegmentedNav
+          label="Inbox filters"
+          active={tab}
+          items={(
+            [
+              ["all", "All"],
+              ["comments", "Comments"],
+              ["dms", "DMs"],
+              ["leads", "Leads"],
+              ["needs_human", "Needs human"],
+              ["automation_paused", "Automation paused"],
+            ] as const
+          ).map(([value, label]) => ({ value, label, href: `${path}?tab=${value}` }))}
+        />
         <div className="ml-auto flex flex-wrap items-center gap-3">
           <label className="border-border bg-surface flex items-center gap-2 rounded-lg border px-3 py-1.5 text-[13px]">
             <PauseCircle

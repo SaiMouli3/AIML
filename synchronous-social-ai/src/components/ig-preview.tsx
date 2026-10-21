@@ -33,7 +33,12 @@ export function IgPreview({
           <span className="font-semibold">{username}</span>
           <span className="ml-auto text-[11px] text-neutral-400">{format.toUpperCase()}</span>
         </div>
-        <div className={cn("relative bg-neutral-100", tall ? "aspect-[9/16] max-h-[420px]" : "aspect-[4/5]")}>
+        <div
+          className={cn(
+            "relative mx-auto bg-neutral-100",
+            tall ? "aspect-[9/16] max-h-[420px]" : "aspect-[4/5] w-full",
+          )}
+        >
           {first ? (
             first.kind === "video" ? (
               <video src={first.url} className="h-full w-full object-cover" controls muted playsInline />

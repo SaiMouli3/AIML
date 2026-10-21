@@ -1,4 +1,4 @@
-> Source: *Synchronous Social AI — Product Requirements Document v1.0* (21 Oct 2026), supplied by Synchronous Consulting and converted to Markdown. Implementation status is tracked in `README.md` and `docs/runbook.md`.
+> Source: _Synchronous Social AI — Product Requirements Document v1.0_ (21 Oct 2026), supplied by Synchronous Consulting and converted to Markdown. Implementation status is tracked in `README.md` and `docs/runbook.md`.
 
 **SYNCHRONOUS SOCIAL AI**
 
@@ -209,13 +209,13 @@ work from business intent to reviewed execution.
 16. Instagram publishing only for media types and account configurations
     officially supported by the connected API.
 
-10. Basic comments/DM inbox capabilities only where official
-permissions and account eligibility allow them.
+17. Basic comments/DM inbox capabilities only where official
+    permissions and account eligibility allow them.
 
-11. Audit log, usage/cost tracking, and clear integration status.
+18. Audit log, usage/cost tracking, and clear integration status.
 
-12. Mock providers for local development, visibly labeled as mocks and
-never represented as live actions.
+19. Mock providers for local development, visibly labeled as mocks and
+    never represented as live actions.
 
 ## Release 2 — Campaign and customer operations
 
@@ -305,8 +305,8 @@ never represented as live actions.
 34. System stores provider response, permalink/media ID where available,
     timestamp, and audit event.
 
-10. Failures become actionable tasks; the system never reports success
-without a confirmed provider response.
+35. Failures become actionable tasks; the system never reports success
+    without a confirmed provider response.
 
 ## Journey C: “Run 50% off for three days”
 
@@ -340,8 +340,8 @@ without a confirmed provider response.
     timezone-aware boundary where API support permits; it also runs
     reconciliation jobs and alerts on failures.
 
-10. The system reports outcomes and never invents unavailable
-conversion data.
+44. The system reports outcomes and never invents unavailable
+    conversion data.
 
 ## Journey D: Customer message management
 
@@ -1171,25 +1171,25 @@ value and safe execution.
 67. Integration secrets never appear in frontend bundles, client logs,
     or application logs.
 
-10. Tenant A cannot read or mutate Tenant B’s content, files, vectors,
-jobs, integrations, or audit records.
+68. Tenant A cannot read or mutate Tenant B’s content, files, vectors,
+    jobs, integrations, or audit records.
 
-11. Every consequential action creates an audit event with actor,
-approval, provider, result, timestamp, and correlation ID.
+69. Every consequential action creates an audit event with actor,
+    approval, provider, result, timestamp, and correlation ID.
 
-12. Mock integrations are clearly labeled and cannot be confused with
-production execution.
+70. Mock integrations are clearly labeled and cannot be confused with
+    production execution.
 
-13. Core flows have unit, integration, authorization, and end-to-end
-tests.
+71. Core flows have unit, integration, authorization, and end-to-end
+    tests.
 
-14. The UI works on mobile and desktop and includes loading, empty,
-error, disconnected, and partial-success states.
+72. The UI works on mobile and desktop and includes loading, empty,
+    error, disconnected, and partial-success states.
 
 # 17. Risk register and mitigations
 
 | Risk                                               | Mitigation                                                                                         |
-|----------------------------------------------------|----------------------------------------------------------------------------------------------------|
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | Meta permissions or API eligibility limit features | Capability discovery, official docs verification, clear unavailable states, app review plan        |
 | API changes or rate limits                         | Versioned adapters, provider contract tests, backoff, reconciliation                               |
 | Wrong offer or invented product claim              | Source-grounded generation, structured offer object, cross-asset consistency, approval             |

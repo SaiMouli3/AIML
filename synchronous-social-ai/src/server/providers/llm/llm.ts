@@ -162,7 +162,17 @@ export function liveLlmProvider(): LlmProvider | null {
   return new OpenAICompatibleProvider(new URL(e.LLM_BASE_URL).hostname, e.LLM_BASE_URL, e.LLM_API_KEY);
 }
 
-const KEEP = new Set(["type", "properties", "items", "enum", "anyOf", "required", "additionalProperties", "description", "const"]);
+const KEEP = new Set([
+  "type",
+  "properties",
+  "items",
+  "enum",
+  "anyOf",
+  "required",
+  "additionalProperties",
+  "description",
+  "const",
+]);
 
 /**
  * Convert a JSON Schema into the strict subset accepted by structured-output providers: every object
@@ -177,7 +187,10 @@ export function toStrictSchema(schema: unknown): Record<string, unknown> {
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(n)) {
       if (!KEEP.has(k)) continue;
-      if (k === "properties") out[k] = Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([pk, pv]) => [pk, walk(pv)]));
+      if (k === "properties")
+        out[k] = Object.fromEntries(
+          Object.entries(v as Record<string, unknown>).map(([pk, pv]) => [pk, walk(pv)]),
+        );
       else if (k === "items" || k === "anyOf") out[k] = walk(v);
       else out[k] = v;
     }

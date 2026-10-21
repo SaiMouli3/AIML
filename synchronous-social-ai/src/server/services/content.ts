@@ -283,7 +283,8 @@ export async function addVersion(ctx: Ctx, id: string, input: z.input<typeof ver
   const invalidated = await invalidateApprovalsForSubject(ctx, id, `Edited to version ${next}`, [
     "publish_post",
   ]);
-  const status = item.status === "concept" ? "concept" : "draft";
+  // Saving an edited version promotes a concept to a draft (it now has real copy to review).
+  const status = "draft";
   const [updated] = await ctx.tx
     .update(s.contentItems)
     .set({ currentVersion: next, status, updatedAt: new Date() })

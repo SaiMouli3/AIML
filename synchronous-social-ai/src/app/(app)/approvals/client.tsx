@@ -13,11 +13,12 @@ import {
   Wallet,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { IgPreview } from "@/components/ig-preview";
 import { ModeBadge, StatusBadge, TierBadge } from "@/components/status";
-import { ConfirmButton, Tabs, TabsList, TabsTrigger } from "@/components/ui/overlay";
+import { ConfirmButton } from "@/components/ui/overlay";
+import { SegmentedNav } from "@/components/ui/segmented";
 import { Badge, Card, CardBody, CardHeader, EmptyState, KeyValue, Notice } from "@/components/ui/primitives";
 import { useAction } from "@/components/use-action";
 import { api } from "@/lib/api-client";
@@ -93,20 +94,22 @@ export function ApprovalsClient({
   canTier3: boolean;
   canTier4: boolean;
 }) {
-  const router = useRouter();
   const path = usePathname();
   const sel = data.detail?.approval;
   return (
     <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
       <div>
-        <Tabs value={status} onValueChange={(v) => router.push(`${path}?status=${v}`)}>
-          <TabsList className="mb-3">
-            <TabsTrigger value="pending">Pending</TabsTrigger>
-            <TabsTrigger value="approved">Approved</TabsTrigger>
-            <TabsTrigger value="executed">Executed</TabsTrigger>
-            <TabsTrigger value="all">All</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div className="mb-3">
+          <SegmentedNav
+            label="Approval status"
+            active={status}
+            items={(["pending", "approved", "executed", "all"] as const).map((v) => ({
+              value: v,
+              label: v[0]!.toUpperCase() + v.slice(1),
+              href: `${path}?status=${v}`,
+            }))}
+          />
+        </div>
         <Card>
           {data.list.length === 0 ? (
             <EmptyState
