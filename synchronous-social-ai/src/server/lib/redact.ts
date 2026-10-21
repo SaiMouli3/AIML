@@ -12,7 +12,8 @@ const PATTERNS: Array<[RegExp, string]> = [
   [/\b(EAA|IGQ|IGA)[A-Za-z0-9]{20,}\b/g, "[REDACTED_TOKEN]"],
   [/([?&](sig|signature|X-Amz-Signature|X-Amz-Credential|access_token|token)=)[^&\s"]+/gi, "$1[REDACTED]"],
   [/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, "[EMAIL]"],
-  [/\+?\d[\d\s().-]{8,}\d/g, "[PHONE]"],
+  // Phone numbers, but not digit runs inside identifiers such as UUIDs.
+  [/(?<![\w-])\+?\d[\d\s().-]{8,}\d(?![\w-])/g, "[PHONE]"],
 ];
 
 export function redactString(value: string): string {

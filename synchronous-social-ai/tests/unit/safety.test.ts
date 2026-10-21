@@ -57,6 +57,11 @@ describe("hashing & redaction", () => {
     );
     expect(hashPayload({ x: 1 })).not.toBe(hashPayload({ x: 2 }));
   });
+  it("redacts phone numbers but leaves UUIDs and correlation ids intact", () => {
+    expect(redact("call +91 98765 43210 now")).toBe("call [PHONE] now");
+    const id = "de5f5355-b37b-4c21-9a1e-11c218646b40";
+    expect(redact(`job ${id} corr_da06b4d1234567890abc`)).toBe(`job ${id} corr_da06b4d1234567890abc`);
+  });
   it("redacts secrets, tokens, emails and signed URL parameters", () => {
     const r = JSON.stringify(
       redact({
