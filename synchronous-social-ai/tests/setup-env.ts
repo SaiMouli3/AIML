@@ -1,0 +1,11 @@
+process.env.APP_ENV = "test";
+process.env.DATABASE_URL = process.env.TEST_DATABASE_URL ?? "postgres://sync:sync@localhost:5432/sync_test";
+process.env.LLM_API_KEY = "";
+process.env.HIGGSFIELD_API_KEY_ID = "";
+process.env.HIGGSFIELD_API_KEY_SECRET = "";
+process.env.META_APP_ID = "test-app-id";
+process.env.META_APP_SECRET = "test-app-secret";
+process.env.META_WEBHOOK_VERIFY_TOKEN = "test-verify-token";
+process.env.META_ADS_TEST_MODE = "true";
+process.env.STORAGE_LOCAL_DIR = ".data/test-storage";
+process.env.LOG_LEVEL = "error";
