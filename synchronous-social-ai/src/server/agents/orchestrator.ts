@@ -1,4 +1,5 @@
 import { and, desc, eq, gte, sql } from "drizzle-orm";
+import { seq } from "../lib/seq";
 import { z } from "zod";
 import { audit } from "../audit/audit";
 import type { Ctx } from "../context";
@@ -165,9 +166,9 @@ export async function getRun(ctx: Ctx, runId: string) {
 
 export async function getRunDetail(ctx: Ctx, runId: string) {
   const run = await getRun(ctx, runId);
-  const [messages, tools] = await Promise.all([
-    ctx.tx.select().from(s.agentMessages).where(eq(s.agentMessages.runId, runId)).orderBy(s.agentMessages.createdAt),
-    ctx.tx.select().from(s.toolInvocations).where(eq(s.toolInvocations.runId, runId)).orderBy(s.toolInvocations.createdAt),
+  const [messages, tools] = await seq([
+    () => ctx.tx.select().from(s.agentMessages).where(eq(s.agentMessages.runId, runId)).orderBy(s.agentMessages.createdAt),
+    () => ctx.tx.select().from(s.toolInvocations).where(eq(s.toolInvocations.runId, runId)).orderBy(s.toolInvocations.createdAt),
   ]);
   return { run, messages, tools };
 }
@@ -263,9 +264,9 @@ async function gatherGrounding(ctx: Ctx, run: AgentRunRow): Promise<Grounding> {
   let metrics: Record<string, unknown> | null = null;
   if (role === "analytics_analyst") {
     const since = new Date(Date.now() - Number(input.windowDays ?? 28) * 86400_000);
-    const [content, ads] = await Promise.all([
-      ctx.tx.select().from(s.contentMetricsSnapshots).where(and(eq(s.contentMetricsSnapshots.workspaceId, ctx.workspaceId), gte(s.contentMetricsSnapshots.fetchedAt, since))).limit(100),
-      ctx.tx.select().from(s.adMetricsSnapshots).where(and(eq(s.adMetricsSnapshots.workspaceId, ctx.workspaceId), gte(s.adMetricsSnapshots.fetchedAt, since))).limit(100),
+    const [content, ads] = await seq([
+      () => ctx.tx.select().from(s.contentMetricsSnapshots).where(and(eq(s.contentMetricsSnapshots.workspaceId, ctx.workspaceId), gte(s.contentMetricsSnapshots.fetchedAt, since))).limit(100),
+      () => ctx.tx.select().from(s.adMetricsSnapshots).where(and(eq(s.adMetricsSnapshots.workspaceId, ctx.workspaceId), gte(s.adMetricsSnapshots.fetchedAt, since))).limit(100),
     ]);
     metrics = {
       contentSnapshots: content.filter((c) => c.source !== "mock").map((c) => ({ contentItemId: c.contentItemId, metrics: c.metrics, window: c.windowLabel, source: c.source })),
@@ -385,6 +386,16 @@ export async function executeAgentRun(jc: JobContext, runId: string): Promise<{ 
       .set({ state: finalState, output: { result: post.output, escalationReasons: reasons, provider: usage.provider } as object, finishedAt: new Date() })
       .where(eq(s.agentRuns.id, runId));
     await audit(ctx, { action: "agent.run_completed", targetType: "agent_run", targetId: runId, provider: usage.provider, metadata: { role, state: finalState, steps, model: usage.model, costUsd: usage.costUsd } });
+    // Tier-1 side effect: extracted facts are stored as *pending* for human review (never auto-approved).
+    if (role === "company_knowledge") {
+      const facts = (post.output as { facts: Array<{ category: string; key: string; value: string; excerpt: string; confidence: number }> }).facts;
+      await recordTool(ctx, runId, role, "add_pending_fact", { count: facts.length }, { ok: true });
+      const { addFact } = await import("../services/company-brain");
+      const writer = { ...ctx, role: "admin" as const };
+      for (const f of facts) {
+        await addFact(writer, { category: f.category as never, key: f.key, value: f.value, sourceId: String((run.input as { sourceId: string }).sourceId), sourceExcerpt: f.excerpt }, { origin: "agent", confidence: f.confidence, agentRunId: runId });
+      }
+    }
   });
   return { state: finalState, output: post.output };
 }

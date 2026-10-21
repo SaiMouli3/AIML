@@ -1,4 +1,5 @@
 import { and, desc, eq, gte, inArray, isNotNull, lte, sql } from "drizzle-orm";
+import { seq } from "../lib/seq";
 import type { Ctx } from "../context";
 import { requirePermission } from "../context";
 import * as s from "../db/schema";
@@ -88,21 +89,21 @@ export async function overview(ctx: Ctx) {
   const endOfDay = new Date(startOfDay.getTime() + 86400_000);
   const weekAhead = new Date(now.getTime() + 7 * 86400_000);
   const ws = (await ctx.tx.select().from(s.workspaces).where(eq(s.workspaces.id, ctx.workspaceId)).limit(1))[0]!;
-  const [profile, dueToday, upcoming, approvals, approvalCount, ads, promos, convs, runs, accounts, deadJobs, unknownActions, spend, recentPublished] = await Promise.all([
-    getProfile(ctx),
-    ctx.tx.select().from(s.contentItems).where(and(eq(s.contentItems.workspaceId, ctx.workspaceId), gte(s.contentItems.scheduledAt, startOfDay), lte(s.contentItems.scheduledAt, endOfDay))).limit(20),
-    ctx.tx.select().from(s.contentItems).where(and(eq(s.contentItems.workspaceId, ctx.workspaceId), gte(s.contentItems.scheduledAt, now), lte(s.contentItems.scheduledAt, weekAhead), inArray(s.contentItems.status, ["scheduled", "approved", "in_review", "draft"]))).orderBy(s.contentItems.scheduledAt).limit(10),
-    ctx.tx.select().from(s.approvalRequests).where(and(eq(s.approvalRequests.workspaceId, ctx.workspaceId), eq(s.approvalRequests.status, "pending"))).orderBy(desc(s.approvalRequests.tier), s.approvalRequests.createdAt).limit(5),
-    pendingApprovalCount(ctx),
-    ctx.tx.select().from(s.adCampaigns).where(and(eq(s.adCampaigns.workspaceId, ctx.workspaceId), inArray(s.adCampaigns.status, ["active", "launched_paused", "approved", "pending_approval", "needs_reconciliation"]))),
-    ctx.tx.select().from(s.promotionOffers).where(and(eq(s.promotionOffers.workspaceId, ctx.workspaceId), inArray(s.promotionOffers.status, ["ready", "active", "needs_input"]))).limit(10),
-    ctx.tx.select({ status: s.inboxConversations.status, c: sql<number>`count(*)::int` }).from(s.inboxConversations).where(eq(s.inboxConversations.workspaceId, ctx.workspaceId)).groupBy(s.inboxConversations.status),
-    ctx.tx.select().from(s.agentRuns).where(eq(s.agentRuns.workspaceId, ctx.workspaceId)).orderBy(desc(s.agentRuns.createdAt)).limit(8),
-    ctx.tx.select().from(s.connectedAccounts).where(eq(s.connectedAccounts.workspaceId, ctx.workspaceId)),
-    ctx.tx.select({ c: sql<number>`count(*)::int` }).from(s.jobs).where(and(eq(s.jobs.workspaceId, ctx.workspaceId), eq(s.jobs.status, "dead"))),
-    ctx.tx.select({ c: sql<number>`count(*)::int` }).from(s.externalActions).where(and(eq(s.externalActions.workspaceId, ctx.workspaceId), eq(s.externalActions.status, "unknown"))),
-    knownSpendMinor(ctx),
-    ctx.tx.select().from(s.contentItems).where(and(eq(s.contentItems.workspaceId, ctx.workspaceId), eq(s.contentItems.status, "published"))).orderBy(desc(s.contentItems.publishedAt)).limit(5),
+  const [profile, dueToday, upcoming, approvals, approvalCount, ads, promos, convs, runs, accounts, deadJobs, unknownActions, spend, recentPublished] = await seq([
+    () => getProfile(ctx),
+    () => ctx.tx.select().from(s.contentItems).where(and(eq(s.contentItems.workspaceId, ctx.workspaceId), gte(s.contentItems.scheduledAt, startOfDay), lte(s.contentItems.scheduledAt, endOfDay))).limit(20),
+    () => ctx.tx.select().from(s.contentItems).where(and(eq(s.contentItems.workspaceId, ctx.workspaceId), gte(s.contentItems.scheduledAt, now), lte(s.contentItems.scheduledAt, weekAhead), inArray(s.contentItems.status, ["scheduled", "approved", "in_review", "draft"]))).orderBy(s.contentItems.scheduledAt).limit(10),
+    () => ctx.tx.select().from(s.approvalRequests).where(and(eq(s.approvalRequests.workspaceId, ctx.workspaceId), eq(s.approvalRequests.status, "pending"))).orderBy(desc(s.approvalRequests.tier), s.approvalRequests.createdAt).limit(5),
+    () => pendingApprovalCount(ctx),
+    () => ctx.tx.select().from(s.adCampaigns).where(and(eq(s.adCampaigns.workspaceId, ctx.workspaceId), inArray(s.adCampaigns.status, ["active", "launched_paused", "approved", "pending_approval", "needs_reconciliation"]))),
+    () => ctx.tx.select().from(s.promotionOffers).where(and(eq(s.promotionOffers.workspaceId, ctx.workspaceId), inArray(s.promotionOffers.status, ["ready", "active", "needs_input"]))).limit(10),
+    () => ctx.tx.select({ status: s.inboxConversations.status, c: sql<number>`count(*)::int` }).from(s.inboxConversations).where(eq(s.inboxConversations.workspaceId, ctx.workspaceId)).groupBy(s.inboxConversations.status),
+    () => ctx.tx.select().from(s.agentRuns).where(eq(s.agentRuns.workspaceId, ctx.workspaceId)).orderBy(desc(s.agentRuns.createdAt)).limit(8),
+    () => ctx.tx.select().from(s.connectedAccounts).where(eq(s.connectedAccounts.workspaceId, ctx.workspaceId)),
+    () => ctx.tx.select({ c: sql<number>`count(*)::int` }).from(s.jobs).where(and(eq(s.jobs.workspaceId, ctx.workspaceId), eq(s.jobs.status, "dead"))),
+    () => ctx.tx.select({ c: sql<number>`count(*)::int` }).from(s.externalActions).where(and(eq(s.externalActions.workspaceId, ctx.workspaceId), eq(s.externalActions.status, "unknown"))),
+    () => knownSpendMinor(ctx),
+    () => ctx.tx.select().from(s.contentItems).where(and(eq(s.contentItems.workspaceId, ctx.workspaceId), eq(s.contentItems.status, "published"))).orderBy(desc(s.contentItems.publishedAt)).limit(5),
   ]);
   return {
     workspace: { name: ws.name, isDemo: ws.isDemo, killSwitch: ws.killSwitch, automationPaused: ws.automationPaused, timezone: ws.timezone, currency: ws.currency, spendCapMinor: ws.monthlyAdSpendCapMinor },

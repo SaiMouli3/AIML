@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, gte, inArray, lte, type SQL } from "drizzle-orm";
+import { seq } from "../lib/seq";
 import { z } from "zod";
 import { audit } from "../audit/audit";
 import type { Ctx } from "../context";
@@ -101,7 +102,7 @@ async function assertMedia(ctx: Ctx, ids: string[]) {
 }
 
 async function computeBrandCheck(ctx: Ctx, item: Pick<Item, "format" | "promotionId">, v: z.infer<typeof versionInputSchema>): Promise<BrandCheckResult> {
-  const [rules, domains, products, media] = await Promise.all([listBrandRules(ctx), listAllowedDomains(ctx), listProducts(ctx), assertMedia(ctx, v.mediaAssetIds)]);
+  const [rules, domains, products, media] = await seq([() => listBrandRules(ctx), () => listAllowedDomains(ctx), () => listProducts(ctx), () => assertMedia(ctx, v.mediaAssetIds)]);
   let promotion = null;
   if (item.promotionId) {
     const p = await ctx.tx.select().from(s.promotionOffers).where(and(eq(s.promotionOffers.id, item.promotionId), eq(s.promotionOffers.workspaceId, ctx.workspaceId))).limit(1);

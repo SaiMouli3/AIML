@@ -1,0 +1,91 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --color-bg: #f7f7f8;
+  --color-surface: #ffffff;
+  --color-surface-2: #fbfbfc;
+  --color-border: #e6e6ea;
+  --color-border-strong: #d4d4da;
+  --color-fg: #0f1115;
+  --color-fg-muted: #5b5f6b;
+  --color-fg-subtle: #8a8f9c;
+
+  --color-brand-50: #f1f2ff;
+  --color-brand-100: #e4e6ff;
+  --color-brand-200: #cdd0ff;
+  --color-brand-500: #5b5bf0;
+  --color-brand-600: #4b46dc;
+  --color-brand-700: #3d37b8;
+
+  --color-success-50: #ecfdf3;
+  --color-success-600: #067647;
+  --color-warning-50: #fffaeb;
+  --color-warning-600: #b54708;
+  --color-danger-50: #fef3f2;
+  --color-danger-600: #d92d20;
+  --color-info-50: #eff8ff;
+  --color-info-600: #175cd3;
+
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 1px rgba(16, 24, 40, 0.02);
+  --shadow-pop: 0 12px 32px -8px rgba(16, 24, 40, 0.18), 0 4px 8px -4px rgba(16, 24, 40, 0.08);
+  --radius-card: 12px;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    @apply bg-bg text-fg font-sans text-[14px] leading-[1.5];
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+.dark {
+  --color-bg: #0b0c0f;
+  --color-surface: #121318;
+  --color-surface-2: #16171d;
+  --color-border: #24262e;
+  --color-border-strong: #33363f;
+  --color-fg: #eceef3;
+  --color-fg-muted: #a3a8b5;
+  --color-fg-subtle: #737887;
+  --color-brand-50: #1c1d3a;
+  --color-brand-100: #24264d;
+  --color-success-50: #0c2a1c;
+  --color-warning-50: #2d2008;
+  --color-danger-50: #2f1210;
+  --color-info-50: #0e2240;
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--color-border) 0%, var(--color-surface-2) 50%, var(--color-border) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}

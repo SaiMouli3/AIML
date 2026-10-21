@@ -1,4 +1,5 @@
 import { and, count, eq, isNull, sql } from "drizzle-orm";
+import { seq } from "../lib/seq";
 import { z } from "zod";
 import { audit, writeAudit } from "../audit/audit";
 import { hashPassword, verifyPassword } from "../auth/password";
@@ -293,21 +294,21 @@ export async function exportWorkspace(ctx: Ctx) {
   requirePermission(ctx, "workspace.manage");
   const w = ctx.workspaceId;
   const [profile, facts, products, content, versions, approvals, decisions, conversations, messages, campaigns, promotions, ads, rules, auditLog] =
-    await Promise.all([
-      ctx.tx.select().from(s.companyProfiles).where(eq(s.companyProfiles.workspaceId, w)),
-      ctx.tx.select().from(s.companyFacts).where(eq(s.companyFacts.workspaceId, w)),
-      ctx.tx.select().from(s.products).where(eq(s.products.workspaceId, w)),
-      ctx.tx.select().from(s.contentItems).where(eq(s.contentItems.workspaceId, w)),
-      ctx.tx.select().from(s.contentVersions).where(eq(s.contentVersions.workspaceId, w)),
-      ctx.tx.select().from(s.approvalRequests).where(eq(s.approvalRequests.workspaceId, w)),
-      ctx.tx.select().from(s.approvalDecisions).where(eq(s.approvalDecisions.workspaceId, w)),
-      ctx.tx.select().from(s.inboxConversations).where(eq(s.inboxConversations.workspaceId, w)),
-      ctx.tx.select().from(s.inboxMessages).where(eq(s.inboxMessages.workspaceId, w)),
-      ctx.tx.select().from(s.campaigns).where(eq(s.campaigns.workspaceId, w)),
-      ctx.tx.select().from(s.promotionOffers).where(eq(s.promotionOffers.workspaceId, w)),
-      ctx.tx.select().from(s.adCampaigns).where(eq(s.adCampaigns.workspaceId, w)),
-      ctx.tx.select().from(s.automationRules).where(eq(s.automationRules.workspaceId, w)),
-      ctx.tx.select().from(s.auditEvents).where(eq(s.auditEvents.workspaceId, w)),
+    await seq([
+      () => ctx.tx.select().from(s.companyProfiles).where(eq(s.companyProfiles.workspaceId, w)),
+      () => ctx.tx.select().from(s.companyFacts).where(eq(s.companyFacts.workspaceId, w)),
+      () => ctx.tx.select().from(s.products).where(eq(s.products.workspaceId, w)),
+      () => ctx.tx.select().from(s.contentItems).where(eq(s.contentItems.workspaceId, w)),
+      () => ctx.tx.select().from(s.contentVersions).where(eq(s.contentVersions.workspaceId, w)),
+      () => ctx.tx.select().from(s.approvalRequests).where(eq(s.approvalRequests.workspaceId, w)),
+      () => ctx.tx.select().from(s.approvalDecisions).where(eq(s.approvalDecisions.workspaceId, w)),
+      () => ctx.tx.select().from(s.inboxConversations).where(eq(s.inboxConversations.workspaceId, w)),
+      () => ctx.tx.select().from(s.inboxMessages).where(eq(s.inboxMessages.workspaceId, w)),
+      () => ctx.tx.select().from(s.campaigns).where(eq(s.campaigns.workspaceId, w)),
+      () => ctx.tx.select().from(s.promotionOffers).where(eq(s.promotionOffers.workspaceId, w)),
+      () => ctx.tx.select().from(s.adCampaigns).where(eq(s.adCampaigns.workspaceId, w)),
+      () => ctx.tx.select().from(s.automationRules).where(eq(s.automationRules.workspaceId, w)),
+      () => ctx.tx.select().from(s.auditEvents).where(eq(s.auditEvents.workspaceId, w)),
     ]);
   await audit(ctx, { action: "workspace.exported", targetType: "workspace", targetId: w });
   return {

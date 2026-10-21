@@ -1,4 +1,5 @@
 import { and, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import { seq } from "../lib/seq";
 import { z } from "zod";
 import { audit } from "../audit/audit";
 import type { Ctx } from "../context";
@@ -259,8 +260,9 @@ export const productSchema = z.object({
   keywords: z.array(z.string().max(60)).max(30).default([]),
 });
 
-export async function upsertProduct(ctx: Ctx, input: z.infer<typeof productSchema>, id?: string) {
+export async function upsertProduct(ctx: Ctx, raw: z.input<typeof productSchema>, id?: string) {
   requirePermission(ctx, "brain.write");
+  const input = productSchema.parse(raw);
   if (input.url) {
     const domains = await listAllowedDomains(ctx);
     const host = new URL(input.url).hostname.replace(/^www\./, "");
@@ -379,15 +381,15 @@ export async function listSources(ctx: Ctx) {
 
 /** Grounding bundle for agents: approved facts, brand rules, products and allowed domains. */
 export async function groundingBundle(ctx: Ctx) {
-  const [profile, facts, rules, catalog, domains] = await Promise.all([
-    getProfile(ctx),
-    ctx.tx
+  const [profile, facts, rules, catalog, domains] = await seq([
+    () => getProfile(ctx),
+    () => ctx.tx
       .select()
       .from(s.companyFacts)
       .where(and(eq(s.companyFacts.workspaceId, ctx.workspaceId), eq(s.companyFacts.status, "approved"))),
-    listBrandRules(ctx),
-    listProducts(ctx),
-    listAllowedDomains(ctx),
+    () => listBrandRules(ctx),
+    () => listProducts(ctx),
+    () => listAllowedDomains(ctx),
   ]);
   return { profile: profile.data, facts, rules, products: catalog, domains };
 }

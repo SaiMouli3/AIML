@@ -1,4 +1,5 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { seq } from "../lib/seq";
 import { z } from "zod";
 import { audit } from "../audit/audit";
 import type { Ctx } from "../context";
@@ -172,12 +173,12 @@ export async function getAd(ctx: Ctx, id: string) {
 
 export async function adDetail(ctx: Ctx, id: string) {
   const ad = await getAd(ctx, id);
-  const [creatives, sets, snapshots, approvals, actions] = await Promise.all([
-    ctx.tx.select().from(s.adCreatives).where(eq(s.adCreatives.adCampaignId, id)),
-    ctx.tx.select().from(s.adSets).where(eq(s.adSets.adCampaignId, id)),
-    ctx.tx.select().from(s.adMetricsSnapshots).where(eq(s.adMetricsSnapshots.adCampaignId, id)).orderBy(desc(s.adMetricsSnapshots.fetchedAt)).limit(30),
-    ctx.tx.select().from(s.approvalRequests).where(and(eq(s.approvalRequests.workspaceId, ctx.workspaceId), eq(s.approvalRequests.subjectId, id))).orderBy(desc(s.approvalRequests.createdAt)),
-    ctx.tx.select().from(s.externalActions).where(and(eq(s.externalActions.workspaceId, ctx.workspaceId), eq(s.externalActions.subjectId, id))).orderBy(desc(s.externalActions.createdAt)),
+  const [creatives, sets, snapshots, approvals, actions] = await seq([
+    () => ctx.tx.select().from(s.adCreatives).where(eq(s.adCreatives.adCampaignId, id)),
+    () => ctx.tx.select().from(s.adSets).where(eq(s.adSets.adCampaignId, id)),
+    () => ctx.tx.select().from(s.adMetricsSnapshots).where(eq(s.adMetricsSnapshots.adCampaignId, id)).orderBy(desc(s.adMetricsSnapshots.fetchedAt)).limit(30),
+    () => ctx.tx.select().from(s.approvalRequests).where(and(eq(s.approvalRequests.workspaceId, ctx.workspaceId), eq(s.approvalRequests.subjectId, id))).orderBy(desc(s.approvalRequests.createdAt)),
+    () => ctx.tx.select().from(s.externalActions).where(and(eq(s.externalActions.workspaceId, ctx.workspaceId), eq(s.externalActions.subjectId, id))).orderBy(desc(s.externalActions.createdAt)),
   ]);
   const validation = await validateAdPlan(ctx, ad, creatives);
   return { ad, creatives, sets, snapshots, approvals, actions, validation };

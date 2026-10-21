@@ -279,6 +279,8 @@ export interface AccountSettings {
   publicReplySuggestions?: boolean;
   privateReplies?: boolean;
   dmAutoReplies?: boolean;
+  /** Facebook Page ID used for ad creatives (Meta ad accounts only). */
+  pageId?: string;
 }
 
 export const oauthGrants = pgTable(

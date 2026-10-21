@@ -1,4 +1,5 @@
 import { and, desc, eq, gte, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
+import { seq } from "../lib/seq";
 import { z } from "zod";
 import { classifyIntentRules, type Intent } from "../agents/contracts";
 import { audit } from "../audit/audit";
@@ -838,12 +839,12 @@ export async function conversationDetail(ctx: Ctx, id: string) {
   requirePermission(ctx, "inbox.read");
   const conv = (await ctx.tx.select().from(s.inboxConversations).where(and(eq(s.inboxConversations.id, id), eq(s.inboxConversations.workspaceId, ctx.workspaceId))).limit(1))[0];
   if (!conv) throw new AppError("NOT_FOUND", "Conversation not found");
-  const [messages, drafts, history, contact, account] = await Promise.all([
-    ctx.tx.select().from(s.inboxMessages).where(eq(s.inboxMessages.conversationId, id)).orderBy(s.inboxMessages.createdAt),
-    ctx.tx.select().from(s.replyDrafts).where(eq(s.replyDrafts.conversationId, id)).orderBy(desc(s.replyDrafts.createdAt)),
-    ctx.tx.select().from(s.auditEvents).where(and(eq(s.auditEvents.workspaceId, ctx.workspaceId), eq(s.auditEvents.targetId, id))).orderBy(desc(s.auditEvents.createdAt)).limit(100),
-    conv.contactId ? ctx.tx.select().from(s.contactRecords).where(eq(s.contactRecords.id, conv.contactId)).limit(1) : Promise.resolve([]),
-    getAccount(ctx, conv.accountId),
+  const [messages, drafts, history, contact, account] = await seq([
+    () => ctx.tx.select().from(s.inboxMessages).where(eq(s.inboxMessages.conversationId, id)).orderBy(s.inboxMessages.createdAt),
+    () => ctx.tx.select().from(s.replyDrafts).where(eq(s.replyDrafts.conversationId, id)).orderBy(desc(s.replyDrafts.createdAt)),
+    () => ctx.tx.select().from(s.auditEvents).where(and(eq(s.auditEvents.workspaceId, ctx.workspaceId), eq(s.auditEvents.targetId, id))).orderBy(desc(s.auditEvents.createdAt)).limit(100),
+    () => conv.contactId ? ctx.tx.select().from(s.contactRecords).where(eq(s.contactRecords.id, conv.contactId)).limit(1) : Promise.resolve([]),
+    () => getAccount(ctx, conv.accountId),
   ]);
   const product = conv.matchedProductId ? (await ctx.tx.select().from(s.products).where(eq(s.products.id, conv.matchedProductId)).limit(1))[0] ?? null : null;
   const content = conv.contentItemId ? (await ctx.tx.select().from(s.contentItems).where(eq(s.contentItems.id, conv.contentItemId)).limit(1))[0] ?? null : null;
