@@ -166,7 +166,8 @@ export async function runExternalAction(
     result = await jc.tenant((ctx) => spec.execute(ctx));
   } catch (e) {
     if (e instanceof RescheduleSignal) {
-      // Provider is still processing (e.g. media container). Nothing irreversible happened yet.
+      // Provider is still processing (media container, video upload, TikTok/Threads publish). The job payload
+      // now carries the provider ref, so the next attempt continues that same request instead of creating another.
       await jc.tenant((ctx) =>
         ctx.tx
           .update(s.externalActions)

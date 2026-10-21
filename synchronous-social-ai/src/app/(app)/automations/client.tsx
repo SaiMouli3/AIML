@@ -58,6 +58,7 @@ interface Data {
   products: Array<{ id: string; name: string }>;
   accounts: Array<{
     id: string;
+    provider: string;
     username: string | null;
     displayName: string;
     mode: string;
@@ -391,7 +392,9 @@ function RuleDrawer({
             <option value="">Any account (approval modes only)</option>
             {data.accounts.map((a) => (
               <option key={a.id} value={a.id}>
-                @{a.username ?? a.displayName}
+                {a.provider === "facebook"
+                  ? `Facebook · ${a.displayName}`
+                  : `Instagram · @${a.username ?? a.displayName}`}
                 {a.mode === "mock" ? " (MOCK)" : ""}
               </option>
             ))}

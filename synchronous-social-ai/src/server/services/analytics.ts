@@ -1,4 +1,5 @@
 import { and, desc, eq, gte, inArray, isNotNull, lte, sql } from "drizzle-orm";
+import { channelLabel, isSocialChannel } from "../../lib/channels";
 import { seq } from "../lib/seq";
 import type { Ctx } from "../context";
 import { requirePermission } from "../context";
@@ -84,6 +85,17 @@ export async function analyticsOverview(ctx: Ctx) {
     gaps.push("No live Instagram account connected: organic insights are unavailable.");
   if (!accounts.some((a) => a.provider === "meta_ads" && a.mode === "live" && a.status === "connected"))
     gaps.push("No live Meta ad account connected: ad spend and delivery metrics are unavailable.");
+  const otherChannels = [
+    ...new Set(
+      accounts
+        .filter((a) => isSocialChannel(a.provider) && a.provider !== "instagram" && a.status === "connected")
+        .map((a) => channelLabel(a.provider)),
+    ),
+  ];
+  if (otherChannels.length)
+    gaps.push(
+      `Post metrics for ${otherChannels.join(", ")} are not synced yet: only publish status and links are shown.`,
+    );
   if ((published[0]?.mock ?? 0) > 0)
     gaps.push(`${published[0]!.mock} item(s) were published to mock accounts and have no metrics.`);
   gaps.push(
@@ -130,7 +142,10 @@ registerJob("analytics.sync_content", {
     for (const item of items) {
       try {
         await jc.tenant(async (ctx) => {
-          const ig = await instagramAdapter(ctx, await getAccount(ctx, item.connectedAccountId!));
+          const account = await getAccount(ctx, item.connectedAccountId!);
+          // Insights are synced for Instagram only; other channels are reported as a data gap.
+          if (account.provider !== "instagram") return;
+          const ig = await instagramAdapter(ctx, account);
           const metrics = await ig.getMediaInsights(item.publishedMediaId!, IG_MEDIA_METRICS);
           if (!Object.keys(metrics).length) return;
           await ctx.tx.insert(s.contentMetricsSnapshots).values({

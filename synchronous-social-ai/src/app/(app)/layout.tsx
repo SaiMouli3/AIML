@@ -99,7 +99,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             {demo ? <strong>Demo environment — sample data is fictional.</strong> : null}
             {d.mock ? (
               <span>
-                Development mock integrations are connected. Items marked MOCK never reach Instagram or Meta.
+                Development mock integrations are connected. Items marked MOCK never reach any social
+                platform.
               </span>
             ) : null}
           </div>

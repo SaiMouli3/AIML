@@ -257,7 +257,7 @@ export const connectedAccounts = pgTable(
   {
     id: id(),
     workspaceId: wsRef(),
-    provider: text("provider").notNull(), // instagram | meta_ads | higgsfield
+    provider: text("provider").notNull(), // instagram | facebook | threads | x | tiktok | meta_ads
     mode: text("mode").notNull(), // live | mock
     externalId: text("external_id").notNull(),
     displayName: text("display_name").notNull(),
@@ -287,6 +287,8 @@ export interface AccountSettings {
   dmAutoReplies?: boolean;
   /** Facebook Page ID used for ad creatives (Meta ad accounts only). */
   pageId?: string;
+  /** TikTok privacy level used for direct posts (must be one the creator offers). */
+  tiktokPrivacy?: string;
 }
 
 export const oauthGrants = pgTable(
@@ -318,6 +320,8 @@ export const oauthStates = pgTable("oauth_states", {
     .references(() => users.id, { onDelete: "cascade" }),
   provider: text("provider").notNull(),
   redirectPath: text("redirect_path").notNull(),
+  /** PKCE code verifier (X), encrypted at rest. */
+  encryptedCodeVerifier: text("encrypted_code_verifier"),
   expiresAt: ts("expires_at").notNull(),
   usedAt: ts("used_at"),
   createdAt: createdAt(),
@@ -815,7 +819,7 @@ export const inboxConversations = pgTable(
     accountId: uuid("account_id")
       .notNull()
       .references(() => connectedAccounts.id, { onDelete: "cascade" }),
-    channel: text("channel").notNull(), // instagram_comment | instagram_dm
+    channel: text("channel").notNull(), // {instagram|facebook}_comment | {instagram|facebook}_dm
     externalThreadId: text("external_thread_id").notNull(),
     contactId: uuid("contact_id").references(() => contactRecords.id, { onDelete: "set null" }),
     mediaExternalId: text("media_external_id"),

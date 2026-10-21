@@ -5,6 +5,7 @@ import { can } from "@/server/rbac/roles";
 import { listIntegrations, redirectUriFor } from "@/server/services/integrations";
 import { mediaProviderStatus } from "@/server/services/media";
 import { env } from "@/server/env";
+import { channelLabel } from "@/lib/channels";
 import { IntegrationsClient } from "./client";
 
 export const metadata = { title: "Integrations" };
@@ -25,7 +26,7 @@ export default async function IntegrationsPage({
     <>
       <PageHeader
         title="Integrations"
-        description="Official Meta and Higgsfield APIs only. An integration is marked available only after credentials, permissions and a live capability check succeed."
+        description="Official platform APIs only. A channel is marked available only after credentials, permissions and a capability check succeed."
       />
       <IntegrationsClient
         data={serialize(data!) as never}
@@ -35,7 +36,7 @@ export default async function IntegrationsPage({
           sp.connected
             ? {
                 tone: "success",
-                text: `Connected ${sp.connected === "instagram" ? "Instagram" : "Meta ad accounts"}.`,
+                text: `Connected ${sp.connected === "meta_ads" ? "Meta ad accounts" : channelLabel(sp.connected)}.`,
               }
             : sp.error
               ? { tone: "danger", text: `Connection failed: ${sp.error}` }
@@ -43,6 +44,10 @@ export default async function IntegrationsPage({
         }
         redirectUris={{
           instagram: redirectUriFor("instagram"),
+          facebook: redirectUriFor("facebook"),
+          threads: redirectUriFor("threads"),
+          x: redirectUriFor("x"),
+          tiktok: redirectUriFor("tiktok"),
           meta_ads: redirectUriFor("meta_ads"),
           webhook: `${env().APP_URL}/api/v1/webhooks/meta`,
         }}

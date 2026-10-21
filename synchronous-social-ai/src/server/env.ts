@@ -38,6 +38,16 @@ const schema = z.object({
     .enum(["true", "false"])
     .default("true")
     .transform((v) => v === "true"),
+  THREADS_APP_ID: z.string().optional(),
+  THREADS_APP_SECRET: z.string().optional(),
+  THREADS_GRAPH_HOST: z.url().default("https://graph.threads.com"),
+  THREADS_AUTHORIZE_URL: z.url().default("https://threads.com/oauth/authorize"),
+  X_CLIENT_ID: z.string().optional(),
+  X_CLIENT_SECRET: z.string().optional(),
+  X_API_BASE: z.url().default("https://api.x.com"),
+  TIKTOK_CLIENT_KEY: z.string().optional(),
+  TIKTOK_CLIENT_SECRET: z.string().optional(),
+  TIKTOK_API_BASE: z.url().default("https://open.tiktokapis.com"),
   HIGGSFIELD_API_KEY_ID: z.string().optional(),
   HIGGSFIELD_API_KEY_SECRET: z.string().optional(),
   HIGGSFIELD_WEBHOOK_TOKEN: z.string().optional(),
@@ -98,5 +108,8 @@ export const integrationsConfigured = {
   llm: () => Boolean(env().LLM_API_KEY),
   meta: () => Boolean(env().META_APP_ID && env().META_APP_SECRET),
   metaWebhooks: () => Boolean(env().META_APP_SECRET && env().META_WEBHOOK_VERIFY_TOKEN),
+  threads: () => Boolean(env().THREADS_APP_ID && env().THREADS_APP_SECRET),
+  x: () => Boolean(env().X_CLIENT_ID && env().X_CLIENT_SECRET),
+  tiktok: () => Boolean(env().TIKTOK_CLIENT_KEY && env().TIKTOK_CLIENT_SECRET),
   higgsfield: () => Boolean(env().HIGGSFIELD_API_KEY_ID && env().HIGGSFIELD_API_KEY_SECRET),
 };

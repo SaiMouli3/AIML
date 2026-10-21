@@ -24,7 +24,7 @@ export default async function AutomationsPage() {
           .select()
           .from(s.connectedAccounts)
           .where(eq(s.connectedAccounts.workspaceId, ctx.workspaceId))
-      ).filter((a) => a.provider === "instagram");
+      ).filter((a) => a.provider === "instagram" || a.provider === "facebook");
       return {
         rules: await listRules(ctx),
         products: await listProducts(ctx),

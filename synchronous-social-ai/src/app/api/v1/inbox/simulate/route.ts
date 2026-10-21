@@ -28,35 +28,57 @@ export const POST = route(
     const acct = await getAccount(ctx, body.accountId);
     if (acct.mode !== "mock")
       throw new AppError("FORBIDDEN", "Simulation is only available for mock accounts");
+    if (acct.provider !== "instagram" && acct.provider !== "facebook")
+      throw new AppError("VALIDATION_FAILED", "Only Instagram and Facebook accounts have an inbox");
     const from = { id: `sim_${body.username}`, username: body.username };
+    const fb = acct.provider === "facebook";
     const entry =
-      body.kind === "comment"
+      fb && body.kind === "comment"
         ? {
             id: acct.externalId,
             time: Math.floor(Date.now() / 1000),
-            field: "comments",
-            value: {
-              id: body.commentId ?? `sim_c_${randomUUID()}`,
-              text: body.text,
-              from,
-              media: body.mediaId ? { id: body.mediaId, media_product_type: "REELS" } : undefined,
-            },
-          }
-        : {
-            id: acct.externalId,
-            time: Date.now(),
-            messaging: [
+            changes: [
               {
-                sender: { id: from.id },
-                recipient: { id: acct.externalId },
-                timestamp: Date.now(),
-                message: { mid: `sim_m_${randomUUID()}`, text: body.text },
+                field: "feed",
+                value: {
+                  item: "comment",
+                  verb: "add",
+                  comment_id: body.commentId ?? `sim_c_${randomUUID()}`,
+                  post_id: body.mediaId ?? `${acct.externalId}_sim_post`,
+                  message: body.text,
+                  from: { id: from.id, name: body.username },
+                  created_time: Math.floor(Date.now() / 1000),
+                },
               },
             ],
-          };
-    const { events } = normalizeMetaWebhook({ object: "instagram", entry: [entry] });
+          }
+        : body.kind === "comment"
+          ? {
+              id: acct.externalId,
+              time: Math.floor(Date.now() / 1000),
+              field: "comments",
+              value: {
+                id: body.commentId ?? `sim_c_${randomUUID()}`,
+                text: body.text,
+                from,
+                media: body.mediaId ? { id: body.mediaId, media_product_type: "REELS" } : undefined,
+              },
+            }
+          : {
+              id: acct.externalId,
+              time: Date.now(),
+              messaging: [
+                {
+                  sender: { id: from.id },
+                  recipient: { id: acct.externalId },
+                  timestamp: Date.now(),
+                  message: { mid: `sim_m_${randomUUID()}`, text: body.text },
+                },
+              ],
+            };
+    const { events } = normalizeMetaWebhook({ object: fb ? "page" : "instagram", entry: [entry] });
     return {
-      results: await withSystem((tx) => ingestWebhookEvents(tx, "mock_instagram", events, correlationId)),
+      results: await withSystem((tx) => ingestWebhookEvents(tx, "mock", events, correlationId)),
     };
   },
 );

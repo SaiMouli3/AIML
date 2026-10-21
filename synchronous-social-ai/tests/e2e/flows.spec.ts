@@ -28,8 +28,8 @@ test("onboarding → draft → approval → mock publish → comment-to-DM", asy
 
   // Integrations: mock Instagram (clearly labelled).
   await page.goto("/integrations");
-  await page.getByRole("button", { name: "Connect mock" }).first().click();
-  await expect(page.getByText("Mock Instagram account connected (development only)")).toBeVisible();
+  await page.getByRole("button", { name: "Connect mock Instagram" }).click();
+  await expect(page.getByText("Mock Instagram connected (development only)")).toBeVisible();
   await expect(page.getByText("Mock", { exact: true }).first()).toBeVisible();
 
   // Media upload.
@@ -42,7 +42,7 @@ test("onboarding → draft → approval → mock publish → comment-to-DM", asy
   // Content Studio: create, attach media, prepare for approval.
   await page.goto("/content?new=1");
   await page.getByLabel("Title (internal)").fill("Aurora launch");
-  await page.getByLabel("Instagram account").selectOption({ index: 1 });
+  await page.getByLabel("Channel", { exact: true }).selectOption({ index: 1 });
   await page.getByLabel("Featured product").selectOption({ label: "Aurora Candle" });
   await page.getByLabel("Caption (optional)").fill("Meet the Aurora Candle. https://shop.example.com/aurora");
   await page.getByRole("button", { name: "Create", exact: true }).click();
@@ -165,6 +165,51 @@ test("media generation job completes with the labelled mock provider", async ({ 
   await eventually(page, async () => {
     await expect(page.getByText("MOCK generated").first()).toBeVisible({ timeout: 2000 });
   });
+});
+
+test("multi-channel: connect X and Facebook, write for X within its limit, copy to Facebook", async ({
+  page,
+}) => {
+  await signupViaUi(page, "Channels Co");
+  await page.goto("/integrations");
+  for (const ch of ["X", "Facebook"]) {
+    await page.getByRole("button", { name: `Connect mock ${ch}` }).click();
+    await expect(page.getByText(`Mock ${ch} connected (development only)`)).toBeVisible();
+  }
+  await expect(page.getByTestId("channel-x").getByText("1 connected")).toBeVisible();
+  await expect(page.getByTestId("channel-facebook").getByText("1 connected")).toBeVisible();
+
+  await page.goto("/content?new=1");
+  await page.getByLabel("Title (internal)").fill("Weekend drop");
+  await page
+    .getByLabel("Channel", { exact: true })
+    .selectOption({ label: "X · @mock_brand (MOCK — nothing is posted)" });
+  // TikTok-only/IG-only formats disappear; X offers post, multi-image and video.
+  await expect(page.getByLabel("Format", { exact: true }).locator("option")).toHaveText([
+    "Post",
+    "Multi-image",
+    "Video",
+  ]);
+  await page.getByLabel("Caption (optional)").fill("x".repeat(290));
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  const drawer = page.getByRole("dialog");
+  await expect(drawer.getByText("X allows 280 characters; this has 290.")).toBeVisible();
+  await expect(drawer.getByText("290/280", { exact: true })).toBeVisible();
+  await drawer.getByLabel(/^Caption/).fill("Weekend drop is live.");
+  await drawer.getByRole("button", { name: "Save as new version" }).click();
+  await expect(page.getByText("New version saved")).toBeVisible();
+  await expect(drawer.getByText("X rules")).toHaveCount(0);
+
+  await drawer.getByRole("button", { name: "Copy to channel" }).click();
+  await page
+    .getByRole("dialog", { name: "Copy to another channel" })
+    .getByLabel("Channel", { exact: true })
+    .selectOption({ index: 1 });
+  await page.getByRole("button", { name: "Create copy" }).click();
+  await expect(page.getByText("Draft created for the new channel")).toBeVisible();
+  await expect(page.getByRole("dialog").getByText(/Facebook Post · version 1/)).toBeVisible();
+  await page.goto("/content");
+  await expect(page.getByRole("row", { name: /Weekend drop · Facebook/ })).toBeVisible();
 });
 
 test("primary pages have no serious accessibility violations", async ({ page }) => {

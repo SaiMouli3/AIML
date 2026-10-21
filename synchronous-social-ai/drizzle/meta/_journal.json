@@ -15,6 +15,13 @@
       "when": 1792599492047,
       "tag": "0001_rls_and_search",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792613267552,
+      "tag": "0002_channels",
+      "breakpoints": true
     }
   ]
 }

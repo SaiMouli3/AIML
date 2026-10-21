@@ -20,8 +20,9 @@ import {
   UserRound,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
+import { ChannelMark } from "@/components/channel-mark";
 import { ModeBadge, StatusBadge } from "@/components/status";
 import { Button } from "@/components/ui/button";
 import { ConfirmButton, Dialog, Switch } from "@/components/ui/overlay";
@@ -43,6 +44,14 @@ import { useAction } from "@/components/use-action";
 import { api } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
 import { fmtDateTime, fmtMoney, fmtRelative, sentence, titleCase } from "@/lib/format";
+
+const isCommentChannel = (ch: string) => ch.endsWith("_comment");
+const platformOf = (ch: string) => (ch.startsWith("facebook") ? "facebook" : "instagram");
+/** Instagram shows @handles; Facebook shows the person's name. */
+const who = (channel: string, c: { username: string | null; externalId: string } | null | undefined) =>
+  platformOf(channel) === "facebook"
+    ? (c?.username ?? c?.externalId ?? "Unknown")
+    : `@${c?.username ?? c?.externalId ?? "unknown"}`;
 
 interface Elig {
   eligible: boolean;
@@ -66,7 +75,13 @@ interface Conv {
     optedOut: boolean;
     suppressed: boolean;
   } | null;
-  account: { id: string; username: string | null; displayName: string; mode: string } | null;
+  account: {
+    id: string;
+    provider: string;
+    username: string | null;
+    displayName: string;
+    mode: string;
+  } | null;
   lastMessage: { text: string; direction: string } | null;
   eligibility: { private?: Elig; public?: Elig; checkedAt?: string } | null;
 }
@@ -114,6 +129,7 @@ interface Detail {
   contact: Conv["contact"];
   account: {
     id: string;
+    provider: string;
     username: string | null;
     displayName: string;
     mode: string;
@@ -151,6 +167,7 @@ interface Data {
   automationPaused: boolean;
   accounts: Array<{
     id: string;
+    provider: string;
     username: string | null;
     displayName: string;
     mode: string;
@@ -168,17 +185,22 @@ const ACTION_LABEL: Record<string, string> = {
 export function InboxClient({
   data,
   tab,
+  platform,
   canReply,
   canAutomate,
   mocksAllowed,
 }: {
   data: Data;
   tab: string;
+  platform: string;
   canReply: boolean;
   canAutomate: boolean;
   mocksAllowed: boolean;
 }) {
   const path = usePathname();
+  const router = useRouter();
+  const chQ = platform ? `&ch=${platform}` : "";
+  const platforms = [...new Set(data.accounts.map((a) => a.provider))];
   const { run } = useAction();
   const [sim, setSim] = useState(false);
   const m = data.metrics;
@@ -222,8 +244,22 @@ export function InboxClient({
               ["needs_human", "Needs human"],
               ["automation_paused", "Automation paused"],
             ] as const
-          ).map(([value, label]) => ({ value, label, href: `${path}?tab=${value}` }))}
+          ).map(([value, label]) => ({ value, label, href: `${path}?tab=${value}${chQ}` }))}
         />
+        {platforms.length > 1 || platform ? (
+          <Select
+            aria-label="Filter by channel"
+            value={platform}
+            onChange={(e) =>
+              router.push(`${path}?tab=${tab}${e.target.value ? `&ch=${e.target.value}` : ""}`)
+            }
+            className="h-8 w-[150px] text-[12.5px]"
+          >
+            <option value="">All channels</option>
+            <option value="instagram">Instagram</option>
+            <option value="facebook">Facebook</option>
+          </Select>
+        ) : null}
         <div className="ml-auto flex flex-wrap items-center gap-3">
           <label className="border-border bg-surface flex items-center gap-2 rounded-lg border px-3 py-1.5 text-[13px]">
             <PauseCircle
@@ -261,7 +297,7 @@ export function InboxClient({
               description={
                 data.accounts.length
                   ? "Comments and DMs from connected accounts appear here once Meta delivers webhook events."
-                  : "Connect an Instagram professional account and configure the webhook in Integrations."
+                  : "Connect an Instagram professional account or a Facebook Page and configure the webhook in Integrations."
               }
             />
           ) : (
@@ -269,21 +305,20 @@ export function InboxClient({
               {data.conversations.map((c) => (
                 <li key={c.id}>
                   <Link
-                    href={`${path}?tab=${tab}&c=${c.id}`}
+                    href={`${path}?tab=${tab}${chQ}&c=${c.id}`}
                     className={cn(
                       "hover:bg-surface-2 block px-4 py-3",
                       data.detail?.conversation.id === c.id && "bg-brand-50/60",
                     )}
                   >
                     <div className="flex items-center gap-2">
-                      {c.channel === "instagram_comment" ? (
-                        <MessageCircle className="text-fg-subtle h-3.5 w-3.5" />
+                      <ChannelMark provider={platformOf(c.channel)} size="xs" />
+                      {isCommentChannel(c.channel) ? (
+                        <MessageCircle className="text-fg-subtle h-3.5 w-3.5" aria-label="Comment" />
                       ) : (
-                        <MessagesSquare className="text-fg-subtle h-3.5 w-3.5" />
+                        <MessagesSquare className="text-fg-subtle h-3.5 w-3.5" aria-label="Direct message" />
                       )}
-                      <span className="truncate text-[13px] font-medium">
-                        @{c.contact?.username ?? c.contact?.externalId ?? "unknown"}
-                      </span>
+                      <span className="truncate text-[13px] font-medium">{who(c.channel, c.contact)}</span>
                       {c.isLead ? <Badge tone="brand">Lead</Badge> : null}
                       <span className="text-fg-subtle ml-auto text-[11.5px]">
                         {fmtRelative(c.lastMessageAt)}
@@ -328,7 +363,8 @@ function ConversationPanel({ d, canReply }: { d: Detail; canReply: boolean }) {
   const { run } = useAction();
   const c = d.conversation;
   const [compose, setCompose] = useState(false);
-  const isComment = c.channel === "instagram_comment";
+  const isComment = isCommentChannel(c.channel);
+  const fb = d.account.provider === "facebook";
   const origin = d.messages.find((m) => m.direction === "inbound");
   const elig = c.eligibility;
   return (
@@ -337,11 +373,16 @@ function ConversationPanel({ d, canReply }: { d: Detail; canReply: boolean }) {
         <CardHeader
           title={
             <span className="flex flex-wrap items-center gap-2">
-              @{d.contact?.username ?? d.contact?.externalId} <StatusBadge status={c.status} />{" "}
+              <ChannelMark provider={d.account.provider} size="sm" />
+              {who(c.channel, d.contact)} <StatusBadge status={c.status} />{" "}
               <ModeBadge mode={d.account.mode} />
             </span>
           }
-          description={`${isComment ? "Comment" : "Direct message"} via @${d.account.username ?? d.account.displayName}`}
+          description={
+            fb
+              ? `${isComment ? "Facebook comment" : "Messenger"} · Page ${d.account.displayName}`
+              : `${isComment ? "Instagram comment" : "Instagram Direct"} · @${d.account.username ?? d.account.displayName}`
+          }
           actions={
             canReply ? (
               <>
@@ -410,7 +451,7 @@ function ConversationPanel({ d, canReply }: { d: Detail; canReply: boolean }) {
                     )}
                   >
                     {m.direction === "inbound"
-                      ? `@${m.authorUsername ?? "customer"} · ${sentence(m.kind)}`
+                      ? `${fb ? (m.authorUsername ?? "Customer") : `@${m.authorUsername ?? "customer"}`} · ${sentence(m.kind)}`
                       : `${ACTION_LABEL[m.kind === "public_reply" ? "public_comment_reply" : m.kind === "private_reply" ? "private_comment_reply" : "dm_reply"]}${m.mode === "mock" ? " · MOCK (not sent)" : ""}`}{" "}
                     · {fmtDateTime(m.providerCreatedAt ?? m.createdAt)}
                   </div>
@@ -757,7 +798,7 @@ function ComposeDialog({
   productId: string | null;
 }) {
   const { run, isBusy } = useAction();
-  const isComment = conv.channel === "instagram_comment";
+  const isComment = isCommentChannel(conv.channel);
   return (
     <Dialog
       open
@@ -831,7 +872,7 @@ function SimulateDialog({
     <Dialog
       open
       onOpenChange={(o) => !o && onClose()}
-      title="Simulate an Instagram event"
+      title="Simulate an inbox event"
       description="Development only. Injects a webhook-shaped event for a MOCK account through the real processing pipeline."
     >
       <form
@@ -865,7 +906,9 @@ function SimulateDialog({
             <Select id="sim-acct" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
               {accounts.map((a) => (
                 <option key={a.id} value={a.id}>
-                  @{a.username ?? a.displayName}
+                  {a.provider === "facebook"
+                    ? `Facebook · ${a.displayName}`
+                    : `Instagram · @${a.username ?? a.displayName}`}
                 </option>
               ))}
             </Select>
@@ -873,7 +916,10 @@ function SimulateDialog({
           <Field label="Event" htmlFor="sim-kind">
             <Select id="sim-kind" value={kind} onChange={(e) => setKind(e.target.value as "comment" | "dm")}>
               <option value="comment">Comment on a post/Reel</option>
-              <option value="dm">Direct message</option>
+              <option value="dm">
+                Direct message
+                {accounts.find((a) => a.id === accountId)?.provider === "facebook" ? " (Messenger)" : ""}
+              </option>
             </Select>
           </Field>
         </div>

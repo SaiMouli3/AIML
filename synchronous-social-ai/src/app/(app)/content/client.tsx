@@ -13,12 +13,14 @@ import {
   ShieldAlert,
   Sparkles,
   Archive,
+  Copy,
   Wand2,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { IgPreview } from "@/components/ig-preview";
+import { ChannelMark } from "@/components/channel-mark";
+import { ChannelPreview } from "@/components/channel-preview";
 import { ContentStatus, ModeBadge, StatusBadge } from "@/components/status";
 import { Button } from "@/components/ui/button";
 import {
@@ -47,6 +49,16 @@ import {
 import { useAction } from "@/components/use-action";
 import { useRun } from "@/components/use-run";
 import { api } from "@/lib/api-client";
+import {
+  CHANNEL_META,
+  CONTENT_FORMATS,
+  channelLabel,
+  formatLabel,
+  isSocialChannel,
+  textLength,
+  validateForChannel,
+  type SocialChannel,
+} from "@/lib/channels";
 import { fmtDateTime, fmtRelative, titleCase } from "@/lib/format";
 
 type Finding = { severity: "block" | "warning" | "info"; code: string; message: string };
@@ -95,7 +107,55 @@ type Asset = {
   width: number | null;
   height: number | null;
 };
-type Account = { id: string; displayName: string; username: string | null; mode: string; status: string };
+type Account = {
+  id: string;
+  provider: string;
+  displayName: string;
+  username: string | null;
+  mode: string;
+  status: string;
+};
+
+const channelOf = (a: Account | null | undefined): SocialChannel | null =>
+  a && isSocialChannel(a.provider) ? a.provider : null;
+
+/** "Facebook · Lumen Candles" / "X · @lumen" — used in every destination picker. */
+function accountLabel(a: Account) {
+  const ch = channelOf(a);
+  const handle =
+    a.username && a.provider !== "facebook"
+      ? `${ch ? CHANNEL_META[ch].handlePrefix : "@"}${a.username}`
+      : a.displayName;
+  return `${channelLabel(a.provider)} · ${handle}`;
+}
+
+/** Destination <option>s grouped by channel. */
+function AccountOptions({ accounts, format }: { accounts: Account[]; format?: string }) {
+  return (
+    <>
+      {[...new Set(accounts.map((a) => a.provider))].map((p) => (
+        <optgroup key={p} label={channelLabel(p)}>
+          {accounts
+            .filter((a) => a.provider === p)
+            .map((a) => {
+              const ch = channelOf(a);
+              const unsupported = Boolean(
+                format && ch && !CHANNEL_META[ch].formats.includes(format as never),
+              );
+              return (
+                <option key={a.id} value={a.id} disabled={a.status !== "connected" || unsupported}>
+                  {accountLabel(a)}
+                  {a.mode === "mock" ? " (MOCK — nothing is posted)" : ""}
+                  {a.status !== "connected" ? ` (${a.status})` : ""}
+                  {unsupported ? ` (no ${formatLabel(ch, format!).toLowerCase()})` : ""}
+                </option>
+              );
+            })}
+        </optgroup>
+      ))}
+    </>
+  );
+}
 interface Detail {
   item: Item;
   current: Version;
@@ -251,7 +311,7 @@ export function ContentClient({
                 <Th>Title</Th>
                 <Th>Format</Th>
                 <Th>Status</Th>
-                <Th>Account</Th>
+                <Th>Channel</Th>
                 <Th>Schedule</Th>
                 <Th>Checks</Th>
                 <Th>Updated</Th>
@@ -282,7 +342,7 @@ export function ContentClient({
                       </div>
                     </Td>
                     <Td>
-                      <Badge>{titleCase(i.format)}</Badge>
+                      <Badge>{formatLabel(acct?.provider, i.format)}</Badge>
                     </Td>
                     <Td>
                       <div className="flex items-center gap-1.5">
@@ -293,7 +353,9 @@ export function ContentClient({
                     <Td className="text-[12.5px]">
                       {acct ? (
                         <span className="flex items-center gap-1.5">
-                          @{acct.username ?? acct.displayName} <ModeBadge mode={acct.mode} />
+                          <ChannelMark provider={acct.provider} size="xs" />
+                          <span className="max-w-[160px] truncate">{accountLabel(acct).split(" · ")[1]}</span>
+                          <ModeBadge mode={acct.mode} />
                         </span>
                       ) : (
                         <span className="text-fg-subtle">Not set</span>
@@ -357,6 +419,13 @@ function CreateDialog({
   onCreated: (id: string) => void;
 }) {
   const { run, isBusy } = useAction();
+  const [accountId, setAccountId] = useState("");
+  const [format, setFormat] = useState("post");
+  const ch = channelOf(data.accounts.find((a) => a.id === accountId));
+  const formats = ch ? CHANNEL_META[ch].formats : CONTENT_FORMATS;
+  useEffect(() => {
+    if (!formats.includes(format as never)) setFormat(formats[0]!);
+  }, [formats, format]);
   return (
     <Dialog
       open={open}
@@ -396,32 +465,39 @@ function CreateDialog({
         <Field label="Title (internal)" htmlFor="c-title" className="md:col-span-2">
           <Input id="c-title" name="title" required />
         </Field>
+        <Field
+          label="Channel"
+          htmlFor="c-account"
+          className="md:col-span-2"
+          hint={
+            data.accounts.length
+              ? "Copy it to more channels later from the editor."
+              : "Connect a channel in Integrations to publish."
+          }
+        >
+          <Select
+            id="c-account"
+            name="account"
+            value={accountId}
+            onChange={(e) => setAccountId(e.target.value)}
+          >
+            <option value="">Decide later</option>
+            <AccountOptions accounts={data.accounts} />
+          </Select>
+        </Field>
         <Field label="Format" htmlFor="c-format">
-          <Select id="c-format" name="format" defaultValue="post">
-            <option value="post">Feed post</option>
-            <option value="carousel">Carousel</option>
-            <option value="reel">Reel</option>
-            <option value="story">Story</option>
+          <Select id="c-format" name="format" value={format} onChange={(e) => setFormat(e.target.value)}>
+            {formats.map((f) => (
+              <option key={f} value={f}>
+                {f === "post" && (!ch || ch === "instagram") ? "Feed post" : formatLabel(ch, f)}
+              </option>
+            ))}
           </Select>
         </Field>
         <Field label="Stage" htmlFor="c-status">
           <Select id="c-status" name="status" defaultValue="draft">
             <option value="concept">Concept (idea only)</option>
             <option value="draft">Draft</option>
-          </Select>
-        </Field>
-        <Field
-          label="Instagram account"
-          htmlFor="c-account"
-          hint={data.accounts.length ? undefined : "Connect an account in Integrations to publish."}
-        >
-          <Select id="c-account" name="account" defaultValue="">
-            <option value="">Not selected</option>
-            {data.accounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                @{a.username ?? a.displayName} {a.mode === "mock" ? "(MOCK)" : ""}
-              </option>
-            ))}
           </Select>
         </Field>
         <Field
@@ -510,6 +586,12 @@ function ContentDrawer({
   const findings = current.brandCheck?.findings ?? [];
   const pendingApproval = detail.approvals.find((a) => a.status === "pending" || a.status === "approved");
   const account = detail.account;
+  const channel = channelOf(account);
+  const fullText = [caption, hashtags.map((h) => `#${h}`).join(" ")].filter(Boolean).join("\n\n");
+  const limit = channel ? Math.min(CHANNEL_META[channel].textLimit, 2200) : 2200;
+  const used = channel ? textLength(channel, fullText) : caption.length;
+  const channelProblems = channel ? validateForChannel(channel, item.format, previewMedia, fullText) : [];
+  const [copying, setCopying] = useState(false);
 
   const saveVersion = () =>
     run(
@@ -543,7 +625,7 @@ function ContentDrawer({
           {item.status === "published" ? <ModeBadge mode={item.publishMode} /> : null}
         </span>
       }
-      description={`${titleCase(item.format)} · version ${item.currentVersion} · updated ${fmtRelative(item.updatedAt)}`}
+      description={`${channel ? `${CHANNEL_META[channel].label} ` : ""}${formatLabel(channel, item.format)} · version ${item.currentVersion} · updated ${fmtRelative(item.updatedAt)}`}
       footer={
         <>
           {item.status === "failed" && canWrite ? (
@@ -555,6 +637,11 @@ function ContentDrawer({
               }
             >
               <RotateCcw className="h-4 w-4" /> Return to draft
+            </Button>
+          ) : null}
+          {canWrite && data.accounts.length ? (
+            <Button variant="ghost" onClick={() => setCopying(true)}>
+              <Copy className="h-4 w-4" /> Copy to channel
             </Button>
           ) : null}
           {canWrite && !locked ? (
@@ -623,12 +710,12 @@ function ContentDrawer({
           title={
             item.publishMode === "mock"
               ? "Published to a MOCK account"
-              : "Published and confirmed by Instagram"
+              : `Published and confirmed by ${channel ? CHANNEL_META[channel].label : "the platform"}`
           }
           className="mb-4"
         >
           {item.publishMode === "mock" ? (
-            "Nothing was posted to Instagram. This shows the end-to-end flow only."
+            `Nothing was posted to ${channel ? CHANNEL_META[channel].label : "the platform"}. This shows the end-to-end flow only.`
           ) : item.permalink ? (
             <a className="underline" href={item.permalink} target="_blank" rel="noreferrer noopener">
               {item.permalink}
@@ -648,13 +735,24 @@ function ContentDrawer({
       ) : null}
       <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
         <div className="space-y-4">
-          <IgPreview
-            username={account?.username ?? "your_account"}
+          <ChannelPreview
+            channel={channel}
+            name={account?.displayName ?? "Your brand"}
+            username={account?.username ?? null}
             format={item.format}
             caption={caption}
             hashtags={hashtags}
             media={previewMedia}
           />
+          {channel && channelProblems.length ? (
+            <Notice tone="warning" title={`${CHANNEL_META[channel].label} rules`}>
+              <ul className="list-disc space-y-0.5 pl-4">
+                {channelProblems.map((p) => (
+                  <li key={p}>{p}</li>
+                ))}
+              </ul>
+            </Notice>
+          ) : null}
           <Card className="p-4">
             <div className="mb-2 flex items-center gap-2 text-[13px] font-semibold">
               {current.brandCheck?.status === "block" ? (
@@ -705,7 +803,10 @@ function ContentDrawer({
                 </Button>
               ) : null}
             </div>
-            <Field label={`Caption (${caption.length}/2200)`} htmlFor="d-caption">
+            <Field
+              label={`Caption (${used.toLocaleString()}/${limit.toLocaleString()}${channel && channel !== "instagram" ? ", incl. hashtags" : ""})`}
+              htmlFor="d-caption"
+            >
               <Textarea
                 id="d-caption"
                 value={caption}
@@ -902,9 +1003,16 @@ function ContentDrawer({
         selected={mediaIds}
         onChange={setMediaIds}
       />
+      <CopyDialog
+        open={copying}
+        onOpenChange={setCopying}
+        itemId={item.id}
+        accounts={data.accounts.filter((a) => a.id !== item.connectedAccountId)}
+      />
       <AssistDialog
         open={assist}
         onOpenChange={setAssist}
+        channel={channel ?? "instagram"}
         format={item.format}
         productIds={item.productIds}
         promotionId={item.promotionId}
@@ -961,17 +1069,13 @@ function ScheduleForm({
       className="space-y-4"
     >
       <Notice tone="neutral" icon={<Info className="h-4 w-4" />}>
-        Changing the account, time, timezone or promotion invalidates any open approval.
+        Changing the channel, time, timezone or promotion invalidates any open approval. To post the same
+        content on several channels, use <strong>Copy to channel</strong>.
       </Notice>
-      <Field label="Instagram account" htmlFor="s-account">
+      <Field label="Channel" htmlFor="s-account">
         <Select id="s-account" name="account" defaultValue={item.connectedAccountId ?? ""} disabled={locked}>
           <option value="">Not selected</option>
-          {accounts.map((a) => (
-            <option key={a.id} value={a.id} disabled={a.status !== "connected"}>
-              @{a.username ?? a.displayName} {a.mode === "mock" ? "(MOCK — nothing is posted)" : ""}{" "}
-              {a.status !== "connected" ? `(${a.status})` : ""}
-            </option>
-          ))}
+          <AccountOptions accounts={accounts} format={item.format} />
         </Select>
       </Field>
       <div className="grid gap-4 md:grid-cols-2">
@@ -1114,9 +1218,65 @@ type Variant = {
   carouselOutline: string[];
 };
 
+function CopyDialog({
+  open,
+  onOpenChange,
+  itemId,
+  accounts,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  itemId: string;
+  accounts: Account[];
+}) {
+  const { run, isBusy } = useAction();
+  const router = useRouter();
+  const path = usePathname();
+  const [accountId, setAccountId] = useState("");
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Copy to another channel"
+      description="Creates a new draft with the same copy, media and schedule. Review it for that channel, then send it for approval."
+    >
+      <form
+        className="space-y-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void run(
+            "copy",
+            () => api<{ id: string }>(`/content/${itemId}/duplicate`, { body: { accountId } }),
+            { success: "Draft created for the new channel", refresh: false },
+          ).then((r) => {
+            if (r) {
+              onOpenChange(false);
+              router.push(`${path}?id=${r.id}`);
+              router.refresh();
+            }
+          });
+        }}
+      >
+        <Field label="Channel" htmlFor="cp-account">
+          <Select id="cp-account" required value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+            <option value="">Choose a channel…</option>
+            <AccountOptions accounts={accounts} />
+          </Select>
+        </Field>
+        <div className="flex justify-end">
+          <Button type="submit" variant="primary" disabled={!accountId} loading={isBusy("copy")}>
+            <Copy className="h-4 w-4" /> Create copy
+          </Button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
 function AssistDialog({
   open,
   onOpenChange,
+  channel,
   format,
   productIds,
   promotionId,
@@ -1124,6 +1284,7 @@ function AssistDialog({
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
+  channel: SocialChannel;
   format: string;
   productIds: string[];
   promotionId: string | null;
@@ -1159,6 +1320,7 @@ function AssistDialog({
                     input: {
                       brief: f.get("brief"),
                       format,
+                      channel,
                       language: f.get("language") || "en",
                       targetSegment: f.get("segment") || undefined,
                       productIds,

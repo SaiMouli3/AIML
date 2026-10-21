@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CHANNEL_META, formatLabel, SOCIAL_CHANNELS } from "../../lib/channels";
 import type { LlmMessage } from "../providers/llm/llm";
 import { quoteUntrusted, UNTRUSTED_DATA_POLICY } from "../lib/injection";
 
@@ -455,6 +456,7 @@ const audienceResearch: AgentContract<z.infer<typeof audienceInput>, z.infer<typ
 export const copywriterInput = z.object({
   brief: z.string().min(3).max(3000),
   format: z.enum(["post", "carousel", "story", "reel"]),
+  channel: z.enum(SOCIAL_CHANNELS).default("instagram"),
   language: z.string().max(20).default("en"),
   targetSegment: z.string().max(300).optional(),
   productIds: z.array(z.uuid()).max(10).default([]),
@@ -517,7 +519,7 @@ const contentCopywriter: AgentContract<z.infer<typeof copywriterInput>, z.infer<
       role: "system",
       content: system(
         "content copywriter",
-        `Write ${i.variants} Instagram ${i.format} caption variants in language "${i.language}". Max 2200 characters, at most 15 hashtags (without #), include descriptive alt text. Only use links on approved domains.`,
+        `Write ${i.variants} ${CHANNEL_META[i.channel].label} ${formatLabel(i.channel, i.format).toLowerCase()} caption variants in language "${i.language}". Max ${Math.min(2200, CHANNEL_META[i.channel].textLimit)} characters INCLUDING hashtags, at most ${i.channel === "x" || i.channel === "threads" ? 2 : 15} hashtags (without #), include descriptive alt text. Match the platform's tone and conventions. Only use links on approved domains.`,
       ),
     },
     {
@@ -714,7 +716,8 @@ export type Intent = (typeof INTENTS)[number];
 
 export const communityInput = z.object({
   text: z.string().max(2200),
-  channel: z.enum(["instagram_comment", "instagram_dm"]),
+  channel: z.enum(["comment", "dm"]),
+  platform: z.enum(["instagram", "facebook"]).default("instagram"),
   mediaCaption: z.string().max(2200).optional(),
   linkedProductIds: z.array(z.string()).max(10).default([]),
 });
@@ -771,7 +774,7 @@ const communityManager: AgentContract<z.infer<typeof communityInput>, z.infer<ty
     },
     {
       role: "user",
-      content: `${groundingText(g, { snippets: false, promotion: true })}\n\nPOST CAPTION: ${quoteUntrusted("post_caption", i.mediaCaption ?? "", 800)}\nLINKED PRODUCT IDS: ${JSON.stringify(i.linkedProductIds)}\nCUSTOMER ${i.channel === "instagram_comment" ? "COMMENT" : "MESSAGE"}: ${quoteUntrusted("customer_message", i.text, 1000)}`,
+      content: `${groundingText(g, { snippets: false, promotion: true })}\n\nPOST CAPTION: ${quoteUntrusted("post_caption", i.mediaCaption ?? "", 800)}\nLINKED PRODUCT IDS: ${JSON.stringify(i.linkedProductIds)}\nPLATFORM: ${i.platform}\nCUSTOMER ${i.channel === "comment" ? "COMMENT" : "MESSAGE"}: ${quoteUntrusted("customer_message", i.text, 1000)}`,
     },
   ],
   mock: (i, g) => {

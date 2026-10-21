@@ -16,13 +16,14 @@ const TABS = ["all", "comments", "dms", "leads", "needs_human", "automation_paus
 export default async function InboxPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; c?: string }>;
+  searchParams: Promise<{ tab?: string; c?: string; ch?: string }>;
 }) {
   const sp = await searchParams;
   const tab = (TABS as readonly string[]).includes(sp.tab ?? "") ? (sp.tab as (typeof TABS)[number]) : "all";
+  const platform = sp.ch === "instagram" || sp.ch === "facebook" ? sp.ch : undefined;
   const { data, session, allowed } = await loadPage(
     async (ctx) => {
-      const conversations = await listConversations(ctx, { tab });
+      const conversations = await listConversations(ctx, { tab, platform });
       const selected = sp.c ?? conversations[0]?.id;
       const detail = selected ? await conversationDetail(ctx, selected).catch(() => null) : null;
       const ws = (
@@ -33,7 +34,7 @@ export default async function InboxPage({
           .select()
           .from(s.connectedAccounts)
           .where(eq(s.connectedAccounts.workspaceId, ctx.workspaceId))
-      ).filter((a) => a.provider === "instagram");
+      ).filter((a) => a.provider === "instagram" || a.provider === "facebook");
       const posts = await ctx.tx
         .select({
           id: s.contentItems.id,
@@ -61,11 +62,12 @@ export default async function InboxPage({
     <>
       <PageHeader
         title="Inbox"
-        description="Eligible Instagram comments and DMs from official webhooks. Every reply is grounded in approved data and passes eligibility, policy and approval checks before sending."
+        description="Instagram and Facebook comments and messages from official webhooks. Every reply is grounded in approved data and passes eligibility, policy and approval checks before sending."
       />
       <InboxClient
         data={serialize(data!) as never}
         tab={tab}
+        platform={platform ?? ""}
         canReply={can(session.role!, "inbox.reply")}
         canAutomate={can(session.role!, "automations.manage")}
         mocksAllowed={env().mocksAllowed}

@@ -1,3 +1,5 @@
+import { ChannelMark } from "@/components/channel-mark";
+import { channelLabel } from "@/lib/channels";
 import {
   AlertTriangle,
   ArrowRight,
@@ -301,10 +303,11 @@ export default async function OverviewPage() {
               <ul className="divide-border divide-y">
                 {o.accounts.map((a) => (
                   <li key={a.id} className="flex items-center gap-3 px-5 py-3">
+                    <ChannelMark provider={a.provider} size="md" />
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[13.5px] font-medium">{a.displayName}</div>
                       <div className="text-fg-muted text-[12px]">
-                        {a.provider === "instagram" ? "Instagram" : "Meta ad account"}
+                        {channelLabel(a.provider)}
                         {a.tokenExpiresAt
                           ? ` · token ${new Date(a.tokenExpiresAt) < new Date() ? "expired" : `expires ${fmtRelative(a.tokenExpiresAt)}`}`
                           : ""}

@@ -86,7 +86,8 @@ async function validateRule(ctx: Ctx, input: z.infer<typeof ruleInputSchema>) {
   }
   if (input.accountId) {
     const acct = await getAccount(ctx, input.accountId);
-    if (acct.provider !== "instagram") problems.push("Rules must target an Instagram account");
+    if (acct.provider !== "instagram" && acct.provider !== "facebook")
+      problems.push("Rules must target an Instagram account or Facebook Page");
   }
   if (problems.length) throw new AppError("VALIDATION_FAILED", "Rule cannot be saved", problems);
   return config;

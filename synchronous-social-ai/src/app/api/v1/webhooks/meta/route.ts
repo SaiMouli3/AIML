@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
     return new NextResponse("Bad request", { status: 400 });
   }
   const { events, ignored } = normalizeMetaWebhook(payload);
-  const results = await withSystem((tx) => ingestWebhookEvents(tx, "instagram", events, correlationId));
+  const results = await withSystem((tx) => ingestWebhookEvents(tx, "live", events, correlationId));
   logger.info("meta_webhook_received", { correlationId, events: events.length, ignored, results });
   return NextResponse.json({ received: events.length, ignored });
 }

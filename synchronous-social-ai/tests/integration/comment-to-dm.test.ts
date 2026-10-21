@@ -79,7 +79,7 @@ async function comment(
     ],
   };
   const { events } = normalizeMetaWebhook(payload);
-  const r = await withSystem((tx) => ingestWebhookEvents(tx, "mock_instagram", events, "corr_test"));
+  const r = await withSystem((tx) => ingestWebhookEvents(tx, "mock", events, "corr_test"));
   await drain();
   return { commentId, result: r };
 }
@@ -358,9 +358,7 @@ describe("comment-to-DM sales assistant", () => {
         },
       ],
     };
-    await withSystem((tx) =>
-      ingestWebhookEvents(tx, "mock_instagram", normalizeMetaWebhook(payload).events, "corr"),
-    );
+    await withSystem((tx) => ingestWebhookEvents(tx, "mock", normalizeMetaWebhook(payload).events, "corr"));
     await drain();
     const rows = await withTenant(t.workspaceId, (tx) =>
       tx.select().from(s.inboxConversations).where(eq(s.inboxConversations.externalThreadId, igsid)),
@@ -387,7 +385,7 @@ describe("comment-to-DM sales assistant", () => {
     const unknown = await withSystem((tx) =>
       ingestWebhookEvents(
         tx,
-        "mock_instagram",
+        "mock",
         normalizeMetaWebhook({
           object: "instagram",
           entry: [

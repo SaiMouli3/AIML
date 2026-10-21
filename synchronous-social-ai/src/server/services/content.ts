@@ -22,7 +22,23 @@ import {
 import { runBrandCheck, type BrandCheckResult } from "./brand-check";
 import { listAllowedDomains, listBrandRules, listProducts } from "./company-brain";
 import { runExternalAction } from "./external-actions";
-import { capabilityStatus, getAccount, instagramAdapter } from "./integrations";
+import {
+  capabilityStatus,
+  getAccount,
+  instagramAdapter,
+  publisherFor,
+  type AccountRow,
+} from "./integrations";
+import {
+  CHANNEL_META,
+  channelLabel,
+  formatLabel,
+  isSocialChannel,
+  TIKTOK_PRIVACY_LABELS,
+  validateForChannel,
+  type TikTokPrivacy,
+} from "../../lib/channels";
+import type { PublishInput, PublishStep } from "../providers/social/types";
 import { notify } from "./notifications";
 import { isValidTimezone } from "./workspace";
 
@@ -251,6 +267,59 @@ export async function createContent(ctx: Ctx, raw: z.input<typeof createContentS
 }
 
 /**
+ * Cross-posting: copy a piece of content (current version, media, schedule) to another channel as a
+ * new draft. Each copy is approved and published separately, with that channel's own rules.
+ */
+export async function duplicateContent(ctx: Ctx, id: string, accountId: string) {
+  requirePermission(ctx, "content.write");
+  const item = await getContent(ctx, id);
+  const v = await getVersion(ctx, item);
+  const account = await getAccount(ctx, accountId);
+  if (!isSocialChannel(account.provider))
+    throw new AppError("VALIDATION_FAILED", "Choose a social channel account");
+  const formats = CHANNEL_META[account.provider].formats;
+  const media = await assertMedia(ctx, v.mediaAssetIds);
+  const format = formats.includes(item.format as never)
+    ? item.format
+    : account.provider === "tiktok"
+      ? media.some((m) => m.kind === "video")
+        ? "reel"
+        : "carousel"
+      : media.length > 1
+        ? "carousel"
+        : "post";
+  const copy = await createContent(ctx, {
+    title: `${item.title} · ${CHANNEL_META[account.provider].label}`.slice(0, 200),
+    format: format as (typeof FORMATS)[number],
+    status: "draft",
+    campaignId: item.campaignId,
+    promotionId: item.promotionId,
+    productIds: item.productIds,
+    connectedAccountId: account.id,
+    scheduledAt: item.scheduledAt && item.scheduledAt > new Date() ? item.scheduledAt.toISOString() : null,
+    timezone: item.timezone,
+    version: {
+      caption: v.caption,
+      cta: v.cta,
+      altText: v.altText,
+      hashtags: v.hashtags,
+      language: v.language,
+      targetSegment: v.targetSegment,
+      mediaAssetIds: v.mediaAssetIds,
+      sourceFactIds: v.sourceFactIds,
+      changeNote: `Copied from "${item.title}" for ${CHANNEL_META[account.provider].label}`,
+    },
+  });
+  await audit(ctx, {
+    action: "content.duplicated",
+    targetType: "content_item",
+    targetId: copy.id,
+    metadata: { sourceId: item.id, channel: account.provider },
+  });
+  return copy;
+}
+
+/**
  * Every edit creates a new immutable version. Material changes invalidate any open approval for the item.
  */
 export async function addVersion(ctx: Ctx, id: string, input: z.input<typeof versionInputSchema>) {
@@ -461,11 +530,54 @@ async function buildPublishPayload(ctx: Ctx, id: string) {
     media: media.map((m) => ({ id: m.id, sha256: m.sha256, mimeType: m.mimeType })),
     accountId: account?.id ?? null,
     accountExternalId: account?.externalId ?? null,
+    channel: account?.provider ?? null,
+    ...(account?.provider === "tiktok" ? { tiktokPrivacy: tiktokPrivacyOf(account) } : {}),
     scheduledAt: item.scheduledAt?.toISOString() ?? null,
     timezone: item.timezone ?? null,
     promotionId: item.promotionId ?? null,
   };
   return { item, v, media, account, payload };
+}
+
+function tiktokPrivacyOf(account: AccountRow): TikTokPrivacy {
+  return (account.settings.tiktokPrivacy as TikTokPrivacy | undefined) ?? "SELF_ONLY";
+}
+
+function destinationLabel(account: AccountRow | null) {
+  if (!account) return "No account selected";
+  const prefix = isSocialChannel(account.provider) ? CHANNEL_META[account.provider].handlePrefix : "@";
+  return account.username ? `${prefix}${account.username}` : account.displayName;
+}
+
+function sideEffectsFor(account: AccountRow | null): string[] {
+  if (!account) return [];
+  const label = channelLabel(account.provider);
+  if (account.mode === "mock") return [`MOCK account: nothing will be posted to ${label}.`];
+  switch (account.provider) {
+    case "instagram":
+      return [
+        "Creates a public Instagram post visible to followers and non-followers.",
+        "Counts toward the account's 100 API-published posts per 24 hours.",
+      ];
+    case "facebook":
+      return [`Publishes a public post on the Facebook Page "${account.displayName}".`];
+    case "threads":
+      return [
+        "Publishes a public thread.",
+        "Counts toward the profile's 250 API-published posts per 24 hours.",
+      ];
+    case "x":
+      return ["Publishes a public post on X. Posts cannot be edited through the API after publishing."];
+    case "tiktok": {
+      const priv = tiktokPrivacyOf(account);
+      return [
+        `Direct-posts to TikTok with visibility "${TIKTOK_PRIVACY_LABELS[priv]}".`,
+        "TikTok moderates content after posting; it may take a while to appear.",
+      ];
+    }
+    default:
+      return [];
+  }
 }
 
 function fullCaption(caption: string, hashtags: string[]) {
@@ -483,18 +595,13 @@ registerApprovalSubject("publish_post", {
       executeBy: item.scheduledAt,
       payload,
       summary: {
-        title: `${item.format === "reel" ? "Reel" : item.format === "story" ? "Story" : item.format === "carousel" ? "Carousel" : "Post"}: ${item.title}`,
-        channel: "Instagram",
-        destination: account ? `@${account.username ?? account.displayName}` : "No account selected",
+        title: `${formatLabel(account?.provider, item.format)}: ${item.title}`,
+        channel: account ? channelLabel(account.provider) : "No channel",
+        destination: destinationLabel(account),
         mode: (account?.mode as "live" | "mock" | undefined) ?? undefined,
         schedule: { at: item.scheduledAt?.toISOString() ?? null, timezone: item.timezone },
         risks: check.findings.filter((f) => f.severity !== "info").map((f) => f.message),
-        sideEffects: [
-          account?.mode === "mock"
-            ? "MOCK account: nothing will be posted to Instagram."
-            : "Creates a public Instagram post visible to followers and non-followers.",
-          "Counts toward the account's 100 API-published posts per 24 hours.",
-        ],
+        sideEffects: sideEffectsFor(account),
         preview: { text: fullCaption(v.caption, v.hashtags), mediaAssetIds: v.mediaAssetIds },
       },
     };
@@ -512,7 +619,13 @@ registerApprovalSubject("publish_post", {
     await enqueue(ctx.tx, {
       type: "content.publish",
       workspaceId: ctx.workspaceId,
-      payload: { contentItemId: item.id, approvalId: approval.id },
+      payload: {
+        contentItemId: item.id,
+        approvalId: approval.id,
+        provider: item.connectedAccountId
+          ? (await getAccount(ctx, item.connectedAccountId)).provider
+          : "instagram",
+      },
       runAt: at,
       idempotencyKey: `content.publish:${approval.id}`,
       correlationId: ctx.correlationId,
@@ -542,8 +655,8 @@ export async function requestPublishApproval(ctx: Ctx, id: string) {
   requirePermission(ctx, "approvals.request");
   const { item, v, account, media } = await buildPublishPayload(ctx, id);
   const problems: string[] = [];
-  if (!account) problems.push("Select an Instagram account.");
-  else if (account.provider !== "instagram") problems.push("Destination must be an Instagram account.");
+  if (!account) problems.push("Select a destination channel.");
+  else if (!isSocialChannel(account.provider)) problems.push("Destination must be a social channel account.");
   else if (account.status !== "connected")
     problems.push(`Account is ${account.status}. Reconnect it in Integrations.`);
   if (item.scheduledAt && item.scheduledAt < new Date(Date.now() - 60_000))
@@ -551,13 +664,26 @@ export async function requestPublishApproval(ctx: Ctx, id: string) {
   const check = v.brandCheck as BrandCheckResult | null;
   if (check?.status === "block")
     problems.push(...check.findings.filter((f) => f.severity === "block").map((f) => f.message));
-  if ((item.format === "post" || item.format === "story") && media.length !== 1)
-    problems.push(`${item.format === "post" ? "Feed posts" : "Stories"} need exactly one media asset.`);
-  if (item.format === "carousel" && (media.length < 2 || media.length > 20))
+  if (account && isSocialChannel(account.provider))
+    problems.push(
+      ...validateForChannel(account.provider, item.format, media, fullCaption(v.caption, v.hashtags)),
+    );
+  else if (!account && item.format === "carousel" && (media.length < 2 || media.length > 20))
     problems.push("Carousels need 2–20 media assets.");
-  if (item.format === "reel" && (media.length !== 1 || media[0]!.kind !== "video"))
-    problems.push("Reels need exactly one video.");
-  if (account && account.status === "connected") {
+  if (
+    account &&
+    account.status === "connected" &&
+    account.provider !== "instagram" &&
+    isSocialChannel(account.provider)
+  ) {
+    const capName = account.provider === "x" && media.length ? "publish_media" : "publish";
+    const cap = await capabilityStatus(ctx, account.id, capName);
+    if (cap.status !== "available")
+      problems.push(
+        `${channelLabel(account.provider)} cannot publish: ${cap.reason ?? "capability unavailable"}`,
+      );
+  }
+  if (account && account.status === "connected" && account.provider === "instagram") {
     const capName =
       item.format === "reel"
         ? "publish_reel"
@@ -590,9 +716,10 @@ registerJob("content.publish", {
     const approvalId = String(payload.approvalId);
     const containerId = payload.containerId as string | undefined;
 
+    const provider = typeof payload.provider === "string" ? payload.provider : "instagram";
     const res = await runExternalAction(jc, {
       actionType: "publish_post",
-      provider: "instagram",
+      provider,
       accountId: null,
       subjectType: "content_item",
       subjectId: contentItemId,
@@ -618,9 +745,13 @@ registerJob("content.publish", {
         });
         if (!decision.allowed) throw new AppError("POLICY_BLOCKED", decision.reasons.join(" "));
         if (item.status === "published") throw new AppError("CONFLICT", "Already published");
-        const limit = await (await instagramAdapter(ctx, account!)).getPublishingLimit();
-        if (limit.used >= limit.total)
-          throw new AppError("RATE_LIMITED", "Instagram publishing limit reached for the last 24 hours");
+        if (!account || account.provider !== provider)
+          throw new AppError("POLICY_BLOCKED", "Destination changed after approval");
+        if (provider === "instagram") {
+          const limit = await (await instagramAdapter(ctx, account)).getPublishingLimit();
+          if (limit.used >= limit.total)
+            throw new AppError("RATE_LIMITED", "Instagram publishing limit reached for the last 24 hours");
+        }
         await ctx.tx
           .update(s.contentItems)
           .set({ status: "publishing", lastError: null, updatedAt: new Date() })
@@ -629,6 +760,7 @@ registerJob("content.publish", {
       },
       async execute(ctx) {
         const { account, item, v, media } = await buildPublishPayload(ctx, contentItemId);
+        if (provider !== "instagram") return publishToChannel(ctx, account!, item, v, media, payload);
         const ig = await instagramAdapter(ctx, account!);
         const caption = fullCaption(v.caption, v.hashtags);
         const urls = await Promise.all(media.map((m) => storage().signedUrl(m.storageKey, 3600)));
@@ -696,6 +828,21 @@ registerJob("content.publish", {
       async reconcile(ctx) {
         // Ambiguous publish: look for the caption among recent media before ever retrying.
         const { account, v } = await buildPublishPayload(ctx, contentItemId);
+        if (provider !== "instagram") {
+          const hit = await (
+            await publisherFor(ctx, account!)
+          ).findRecent(fullCaption(v.caption, v.hashtags));
+          if (hit === undefined || (hit === null && account!.mode === "mock")) return null;
+          return hit
+            ? {
+                found: true,
+                result: {
+                  providerRef: hit.id,
+                  summary: { permalink: hit.permalink ?? null, reconciled: true },
+                },
+              }
+            : { found: false };
+        }
         const ig = await instagramAdapter(ctx, account!);
         // Mock accounts have no provider state to inspect: leave the outcome for a human.
         if (ig.mode === "mock") return null;
@@ -730,8 +877,8 @@ registerJob("content.publish", {
           kind: "published",
           title:
             row.mode === "mock"
-              ? "Mock publish completed (nothing posted to Instagram)"
-              : "Post published to Instagram",
+              ? `Mock publish completed (nothing posted to ${channelLabel(provider)})`
+              : `Post published to ${channelLabel(provider)}`,
           link: `/content?id=${contentItemId}`,
         });
       },
@@ -752,6 +899,49 @@ registerJob("content.publish", {
     return { status: res.status };
   },
 });
+
+/**
+ * Facebook, Threads, X and TikTok. Slow platforms return a processing ref that is persisted in the job
+ * payload via RescheduleSignal, so a later attempt advances the same post instead of creating another.
+ */
+async function publishToChannel(
+  ctx: Ctx,
+  account: AccountRow,
+  item: Item,
+  v: Version,
+  media: Array<typeof s.mediaAssets.$inferSelect>,
+  payload: Record<string, unknown>,
+) {
+  const pub = await publisherFor(ctx, account);
+  const input: PublishInput = {
+    format: item.format as PublishInput["format"],
+    text: fullCaption(v.caption, v.hashtags),
+    media: await Promise.all(
+      media.map(async (m) => ({
+        kind: m.kind as "image" | "video",
+        mimeType: m.mimeType,
+        sizeBytes: m.sizeBytes,
+        altText: v.altText ?? m.altText ?? undefined,
+        url: await storage().signedUrl(m.storageKey, 3 * 3600),
+        load: () => storage().get(m.storageKey),
+      })),
+    ),
+    privacyLevel: account.provider === "tiktok" ? tiktokPrivacyOf(account) : undefined,
+  };
+  const ref = payload.channelRef as Record<string, string | string[]> | undefined;
+  const step: PublishStep = ref ? await pub.checkPublish(ref, input) : await pub.publish(input);
+  if (step.state === "processing") {
+    const polls = Number(payload.polls ?? 0);
+    if (polls >= 30)
+      throw new (await import("../providers/errors")).ProviderError(
+        "invalid",
+        account.provider,
+        "The platform did not finish processing the media in time",
+      );
+    throw new RescheduleSignal(step.checkAfterMs, { ...payload, channelRef: step.ref, polls: polls + 1 });
+  }
+  return { providerRef: step.id, summary: { permalink: step.permalink ?? null, mode: pub.mode } };
+}
 
 /** Recover a failed post: return it to draft so it can be fixed and re-approved. */
 export async function resetFailedContent(ctx: Ctx, id: string) {

@@ -8,6 +8,7 @@ import { contentDetail, listContent } from "@/server/services/content";
 import { listMedia } from "@/server/services/media";
 import { listProducts } from "@/server/services/company-brain";
 import { listPromotions } from "@/server/services/promotions";
+import { isSocialChannel } from "@/lib/channels";
 import { ContentClient } from "./client";
 
 export const metadata = { title: "Content Studio" };
@@ -35,7 +36,7 @@ export default async function ContentPage({
       )[0]!;
       return {
         items,
-        accounts: accounts.filter((a) => a.provider === "instagram"),
+        accounts: accounts.filter((a) => isSocialChannel(a.provider) && a.status !== "disconnected"),
         detail,
         media: await listMedia(ctx, 60),
         products: await listProducts(ctx),

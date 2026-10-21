@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, like, or, sql, type SQL } from "drizzle-orm";
 import { seq } from "../lib/seq";
 import { z } from "zod";
 import { classifyIntentRules, type Intent } from "../agents/contracts";
@@ -31,7 +31,7 @@ import {
 } from "./automation-config";
 import { listAllowedDomains, listProducts } from "./company-brain";
 import { runExternalAction } from "./external-actions";
-import { capabilityStatus, getAccount, instagramAdapter, type AccountRow } from "./integrations";
+import { capabilityStatus, getAccount, messagingAdapter, type AccountRow } from "./integrations";
 import { notify } from "./notifications";
 import { offerSentence } from "./promotions";
 
@@ -54,10 +54,17 @@ type Promo = typeof s.promotionOffers.$inferSelect;
 
 // ───────────────────────────── Webhook normalization ─────────────────────────────
 
+export type InboxPlatform = "instagram" | "facebook";
+export const INBOX_PLATFORMS: InboxPlatform[] = ["instagram", "facebook"];
+
+export const isCommentChannel = (channel: string) => channel.endsWith("_comment");
+export const isDmChannel = (channel: string) => channel.endsWith("_dm");
+
 export interface NormalizedEvent {
+  platform: InboxPlatform;
   kind: "comment" | "dm";
   eventKey: string;
-  igAccountId: string;
+  accountExternalId: string;
   commentId?: string;
   mediaId?: string;
   mediaProductType?: string;
@@ -79,6 +86,18 @@ const commentValue = z.object({
   parent_id: z.string().optional(),
 });
 
+/** Facebook Page `feed` change for a comment (item=comment, verb=add). */
+const pageFeedValue = z.object({
+  item: z.literal("comment"),
+  verb: z.string(),
+  comment_id: z.string(),
+  post_id: z.string().optional(),
+  parent_id: z.string().optional(),
+  message: z.string().default(""),
+  from: z.object({ id: z.string(), name: z.string().optional() }),
+  created_time: z.number().optional(),
+});
+
 const messagingItem = z.object({
   sender: z.object({ id: z.string() }),
   recipient: z.object({ id: z.string() }),
@@ -88,7 +107,10 @@ const messagingItem = z.object({
     .optional(),
 });
 
-/** Normalize both Instagram-Login (`field`/`value` on entry) and Facebook-Login (`changes[]`) payload shapes. */
+/**
+ * Normalize Meta webhook payloads: Instagram (Instagram Login `field`/`value` on entry, or Facebook Login
+ * `changes[]`) and Facebook Pages (`object: "page"`, `feed` comment changes and Messenger `messaging`).
+ */
 export function normalizeMetaWebhook(payload: unknown): { events: NormalizedEvent[]; ignored: number } {
   const root = z
     .object({ object: z.string(), entry: z.array(z.record(z.string(), z.unknown())) })
@@ -96,8 +118,9 @@ export function normalizeMetaWebhook(payload: unknown): { events: NormalizedEven
   if (!root.success) return { events: [], ignored: 1 };
   const events: NormalizedEvent[] = [];
   let ignored = 0;
+  const platform: InboxPlatform = root.data.object === "page" ? "facebook" : "instagram";
   for (const entry of root.data.entry) {
-    const igAccountId = String(entry.id ?? "");
+    const accountExternalId = String(entry.id ?? "");
     const time =
       typeof entry.time === "number"
         ? new Date(entry.time > 1e12 ? entry.time : entry.time * 1000)
@@ -108,6 +131,30 @@ export function normalizeMetaWebhook(payload: unknown): { events: NormalizedEven
         ? [{ field: entry.field, value: entry.value }]
         : [];
     for (const ch of changes) {
+      if (platform === "facebook") {
+        const f = ch.field === "feed" ? pageFeedValue.safeParse(ch.value) : null;
+        // Only newly added comments; edits, removals, reactions and posts are ignored.
+        if (!f?.success || f.data.verb !== "add") {
+          ignored++;
+          continue;
+        }
+        events.push({
+          platform,
+          kind: "comment",
+          eventKey: `comment:${f.data.comment_id}`,
+          accountExternalId,
+          commentId: f.data.comment_id,
+          mediaId: f.data.post_id,
+          fromId: f.data.from.id,
+          fromUsername: f.data.from.name,
+          text: f.data.message,
+          timestamp: f.data.created_time ? new Date(f.data.created_time * 1000) : time,
+          isEcho: f.data.from.id === accountExternalId,
+          parentCommentId:
+            f.data.parent_id && f.data.parent_id !== f.data.post_id ? f.data.parent_id : undefined,
+        });
+        continue;
+      }
       if (ch.field !== "comments" && ch.field !== "live_comments") {
         ignored++;
         continue;
@@ -119,9 +166,10 @@ export function normalizeMetaWebhook(payload: unknown): { events: NormalizedEven
         continue;
       }
       events.push({
+        platform,
         kind: "comment",
         eventKey: `comment:${cid}`,
-        igAccountId,
+        accountExternalId,
         commentId: cid,
         mediaId: v.data.media?.id,
         mediaProductType: ch.field === "live_comments" ? "LIVE" : v.data.media?.media_product_type,
@@ -129,7 +177,7 @@ export function normalizeMetaWebhook(payload: unknown): { events: NormalizedEven
         fromUsername: v.data.from.username,
         text: v.data.text,
         timestamp: time,
-        isEcho: v.data.from.id === igAccountId,
+        isEcho: v.data.from.id === accountExternalId,
         parentCommentId: v.data.parent_id,
       });
     }
@@ -140,14 +188,15 @@ export function normalizeMetaWebhook(payload: unknown): { events: NormalizedEven
         continue;
       }
       events.push({
+        platform,
         kind: "dm",
         eventKey: `message:${p.data.message.mid}`,
-        igAccountId,
+        accountExternalId,
         messageId: p.data.message.mid,
         fromId: p.data.sender.id,
         text: p.data.message.text ?? "",
         timestamp: new Date(p.data.timestamp),
-        isEcho: Boolean(p.data.message.is_echo) || p.data.sender.id === igAccountId,
+        isEcho: Boolean(p.data.message.is_echo) || p.data.sender.id === accountExternalId,
       });
     }
   }
@@ -504,7 +553,7 @@ export async function dmEligibility(
 /** Persist a webhook delivery durably and enqueue processing. Duplicate deliveries are acknowledged and ignored. */
 export async function ingestWebhookEvents(
   tx: Parameters<Parameters<typeof import("../db/tenant").withSystem>[0]>[0],
-  provider: "instagram" | "mock_instagram",
+  source: "live" | "mock",
   events: NormalizedEvent[],
   correlationId: string,
 ) {
@@ -513,7 +562,7 @@ export async function ingestWebhookEvents(
     const inserted = await tx
       .insert(s.webhookEvents)
       .values({
-        provider,
+        provider: source === "mock" ? `mock_${ev.platform}` : ev.platform,
         eventKey: ev.eventKey,
         field: ev.kind,
         payload: { ...ev, timestamp: ev.timestamp.toISOString() },
@@ -540,20 +589,18 @@ export async function ingestWebhookEvents(
       .from(s.connectedAccounts)
       .where(
         and(
-          eq(s.connectedAccounts.provider, "instagram"),
-          eq(s.connectedAccounts.externalId, ev.igAccountId),
+          eq(s.connectedAccounts.provider, ev.platform),
+          eq(s.connectedAccounts.externalId, ev.accountExternalId),
           eq(s.connectedAccounts.status, "connected"),
         ),
       );
-    const targets = accounts.filter((a) =>
-      provider === "mock_instagram" ? a.mode === "mock" : a.mode === "live",
-    );
+    const targets = accounts.filter((a) => (source === "mock" ? a.mode === "mock" : a.mode === "live"));
     if (!targets.length) {
       await tx
         .update(s.webhookEvents)
         .set({
           status: "ignored",
-          statusReason: "No connected account for this Instagram ID",
+          statusReason: `No connected ${ev.platform === "facebook" ? "Facebook Page" : "Instagram account"} for this ID`,
           processedAt: new Date(),
         })
         .where(eq(s.webhookEvents.id, inserted[0]!.id));
@@ -660,7 +707,7 @@ export async function processInboundEvent(jc: JobContext, webhookEventId: string
       .insert(s.contactRecords)
       .values({
         workspaceId: ctx.workspaceId,
-        provider: "instagram",
+        provider: account.provider,
         externalId: e.fromId,
         username: e.fromUsername ?? null,
         lastInboundDmAt: e.kind === "dm" ? new Date(e.timestamp) : null,
@@ -673,7 +720,7 @@ export async function processInboundEvent(jc: JobContext, webhookEventId: string
         },
       })
       .returning();
-    const channel = e.kind === "comment" ? "instagram_comment" : "instagram_dm";
+    const channel = `${account.provider}_${e.kind === "comment" ? "comment" : "dm"}`;
     const threadId = e.kind === "comment" ? e.commentId! : e.fromId;
     const linked = e.mediaId
       ? (
@@ -794,7 +841,12 @@ export async function processInboundEvent(jc: JobContext, webhookEventId: string
             workspaceId: ctx.workspaceId,
             agentRole: "community_manager",
             state: "REQUESTED",
-            input: { text: e.text, channel: conv.channel, linkedProductIds: linked?.productIds ?? [] },
+            input: {
+              text: e.text,
+              channel: isCommentChannel(conv.channel) ? "comment" : "dm",
+              platform: account.provider === "facebook" ? "facebook" : "instagram",
+              linkedProductIds: linked?.productIds ?? [],
+            },
             maxSteps: 2,
             subjectType: "inbox_conversation",
             subjectId: conv.id,
@@ -903,7 +955,7 @@ export async function processInboundEvent(jc: JobContext, webhookEventId: string
       return { status: "ignored_spam" };
     }
 
-    const isComment = conv.channel === "instagram_comment";
+    const isComment = isCommentChannel(conv.channel);
     const privateElig = isComment
       ? await privateReplyEligibility(ctx, conv, account)
       : await dmEligibility(ctx, conv, account);
@@ -1114,10 +1166,17 @@ function replySubject(actionType: "public_comment_reply" | "private_comment_repl
                 ? `Private reply (DM) to ${recipient}`
                 : `DM reply to ${recipient}`,
           channel:
-            actionType === "public_comment_reply"
-              ? "Instagram comment (public)"
-              : "Instagram Direct (private)",
-          destination: `@${account.username ?? account.displayName}`,
+            account.provider === "facebook"
+              ? actionType === "public_comment_reply"
+                ? "Facebook comment (public)"
+                : "Messenger (private)"
+              : actionType === "public_comment_reply"
+                ? "Instagram comment (public)"
+                : "Instagram Direct (private)",
+          destination:
+            account.provider === "facebook"
+              ? account.displayName
+              : `@${account.username ?? account.displayName}`,
           mode: account.mode as "live" | "mock",
           recipient: `${recipient}${source ? ` — in reply to: “${source.text.slice(0, 140)}”` : ""}`,
           audience:
@@ -1195,7 +1254,7 @@ registerJob("inbox.send_reply", {
         : `${actionType}:${draftId}:${approvalId ?? ruleId}`;
     const res = await runExternalAction(jc, {
       actionType,
-      provider: "instagram",
+      provider: base.account.provider,
       accountId: base.account.id,
       subjectType: "reply_draft",
       subjectId: draftId,
@@ -1309,7 +1368,7 @@ registerJob("inbox.send_reply", {
       },
       async execute(ctx) {
         const { draft, conv, account, contact } = await draftContext(ctx, draftId);
-        const ig = await instagramAdapter(ctx, account);
+        const ig = await messagingAdapter(ctx, account);
         if (actionType === "public_comment_reply") {
           const r = await ig.replyToComment(conv.externalThreadId, draft.text);
           return { providerRef: r.id, summary: { mode: ig.mode } };
@@ -1321,7 +1380,7 @@ registerJob("inbox.send_reply", {
         const r = await ig.sendMessage(contact!.externalId, draft.text);
         return { providerRef: r.messageId, summary: { mode: ig.mode } };
       },
-      // Instagram offers no lookup for sent private replies/DMs: ambiguous outcomes need a human.
+      // Neither Instagram nor Messenger offers a lookup for sent private replies/DMs: ambiguous outcomes need a human.
       reconcile: undefined,
       async onSuccess(ctx, result, row) {
         const { draft, conv } = await draftContext(ctx, draftId);
@@ -1417,14 +1476,16 @@ async function privateReplyEligibilityForSend(
 export const inboxQuery = z.object({
   tab: z.enum(["all", "comments", "dms", "leads", "needs_human", "automation_paused"]).default("all"),
   accountId: z.uuid().optional(),
+  platform: z.enum(["instagram", "facebook"]).optional(),
 });
 
 export async function listConversations(ctx: Ctx, q: z.infer<typeof inboxQuery>) {
   requirePermission(ctx, "inbox.read");
   const conds: SQL[] = [eq(s.inboxConversations.workspaceId, ctx.workspaceId)];
   if (q.accountId) conds.push(eq(s.inboxConversations.accountId, q.accountId));
-  if (q.tab === "comments") conds.push(eq(s.inboxConversations.channel, "instagram_comment"));
-  if (q.tab === "dms") conds.push(eq(s.inboxConversations.channel, "instagram_dm"));
+  if (q.tab === "comments") conds.push(like(s.inboxConversations.channel, "%\\_comment"));
+  if (q.tab === "dms") conds.push(like(s.inboxConversations.channel, "%\\_dm"));
+  if (q.platform) conds.push(like(s.inboxConversations.channel, `${q.platform}\\_%`));
   if (q.tab === "leads") conds.push(eq(s.inboxConversations.isLead, true));
   if (q.tab === "needs_human") conds.push(eq(s.inboxConversations.status, "needs_human"));
   const ws = (
@@ -1597,9 +1658,9 @@ export async function createManualDraft(
 ) {
   requirePermission(ctx, "inbox.reply");
   const { conversation: conv, account } = await conversationDetail(ctx, conversationId);
-  if (conv.channel === "instagram_dm" && input.actionType !== "dm_reply")
+  if (isDmChannel(conv.channel) && input.actionType !== "dm_reply")
     throw new AppError("VALIDATION_FAILED", "DM conversations only support DM replies");
-  if (conv.channel === "instagram_comment" && input.actionType === "dm_reply")
+  if (isCommentChannel(conv.channel) && input.actionType === "dm_reply")
     throw new AppError(
       "VALIDATION_FAILED",
       "Reply to a comment privately with a private reply; ongoing DMs need the person to message first",
