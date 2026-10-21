@@ -6,7 +6,15 @@ import { withSystem, withTenant } from "@/server/db/tenant";
 import * as s from "@/server/db/schema";
 import { connectMockAccount, updateAccountSettings } from "@/server/services/integrations";
 import { addAllowedDomain, upsertProduct } from "@/server/services/company-brain";
-import { conversationDetail, editDraft, ingestWebhookEvents, inboxMetrics, listConversations, normalizeMetaWebhook, setHumanTakeover } from "@/server/services/inbox";
+import {
+  conversationDetail,
+  editDraft,
+  ingestWebhookEvents,
+  inboxMetrics,
+  listConversations,
+  normalizeMetaWebhook,
+  setHumanTakeover,
+} from "@/server/services/inbox";
 import { decide, getApproval } from "@/server/services/approvals";
 import { createRule, setRuleEnabled, testRule } from "@/server/services/automations";
 import { setAutomationPaused } from "@/server/services/workspace";
@@ -18,18 +26,58 @@ async function setup(opts: { domain?: boolean; productUrl?: string } = {}) {
   const product = await withTenant(t.workspaceId, (tx) =>
     tx
       .insert(s.products)
-      .values({ workspaceId: t.workspaceId, name: "Aurora Candle", url: opts.productUrl ?? "https://shop.example.com/aurora", priceMinor: 2500, currency: "USD", stockStatus: "in_stock", variants: ["Small", "Large"], keywords: ["candle"] })
+      .values({
+        workspaceId: t.workspaceId,
+        name: "Aurora Candle",
+        url: opts.productUrl ?? "https://shop.example.com/aurora",
+        priceMinor: 2500,
+        currency: "USD",
+        stockStatus: "in_stock",
+        variants: ["Small", "Large"],
+        keywords: ["candle"],
+      })
       .returning(),
   ).then((r) => r[0]!);
   // A published reel featuring that product.
   const mediaId = `mock_media_${randomUUID()}`;
-  await withTenant(t.workspaceId, (tx) => tx.insert(s.contentItems).values({ workspaceId: t.workspaceId, title: "Candle reel", format: "reel", status: "published", productIds: [product.id], publishedMediaId: mediaId, connectedAccountId: acct.id, publishMode: "mock" }));
+  await withTenant(t.workspaceId, (tx) =>
+    tx.insert(s.contentItems).values({
+      workspaceId: t.workspaceId,
+      title: "Candle reel",
+      format: "reel",
+      status: "published",
+      productIds: [product.id],
+      publishedMediaId: mediaId,
+      connectedAccountId: acct.id,
+      publishMode: "mock",
+    }),
+  );
   return { t, acct, product, mediaId };
 }
 
-async function comment(acctExternalId: string, mediaId: string, text: string, opts: { commentId?: string; time?: number; from?: string } = {}) {
+async function comment(
+  acctExternalId: string,
+  mediaId: string,
+  text: string,
+  opts: { commentId?: string; time?: number; from?: string } = {},
+) {
   const commentId = opts.commentId ?? `c_${randomUUID()}`;
-  const payload = { object: "instagram", entry: [{ id: acctExternalId, time: opts.time ?? Math.floor(Date.now() / 1000), field: "comments", value: { id: commentId, text, from: { id: opts.from ?? `u_${randomUUID().slice(0, 8)}`, username: "jo" }, media: { id: mediaId, media_product_type: "REELS" } } }] };
+  const payload = {
+    object: "instagram",
+    entry: [
+      {
+        id: acctExternalId,
+        time: opts.time ?? Math.floor(Date.now() / 1000),
+        field: "comments",
+        value: {
+          id: commentId,
+          text,
+          from: { id: opts.from ?? `u_${randomUUID().slice(0, 8)}`, username: "jo" },
+          media: { id: mediaId, media_product_type: "REELS" },
+        },
+      },
+    ],
+  };
   const { events } = normalizeMetaWebhook(payload);
   const r = await withSystem((tx) => ingestWebhookEvents(tx, "mock_instagram", events, "corr_test"));
   await drain();
@@ -37,7 +85,9 @@ async function comment(acctExternalId: string, mediaId: string, text: string, op
 }
 
 async function conv(t: Tenant, commentId: string) {
-  const rows = await withTenant(t.workspaceId, (tx) => tx.select().from(s.inboxConversations).where(eq(s.inboxConversations.externalThreadId, commentId)));
+  const rows = await withTenant(t.workspaceId, (tx) =>
+    tx.select().from(s.inboxConversations).where(eq(s.inboxConversations.externalThreadId, commentId)),
+  );
   return as(t, (ctx) => conversationDetail(ctx, rows[0]!.id));
 }
 
@@ -68,7 +118,9 @@ describe("comment-to-DM sales assistant", () => {
     await drain();
     after = await conv(t, commentId);
     expect(after.drafts.every((x) => x.status === "sent")).toBe(true);
-    expect(after.messages.filter((m) => m.direction === "outbound").every((m) => m.mode === "mock")).toBe(true);
+    expect(after.messages.filter((m) => m.direction === "outbound").every((m) => m.mode === "mock")).toBe(
+      true,
+    );
     const m = await as(t, (ctx) => inboxMetrics(ctx));
     expect(m).toMatchObject({ sent: 2, sentPrivate: 1 });
     expect(m.notTracked).toContain("Link clicks");
@@ -88,9 +140,27 @@ describe("comment-to-DM sales assistant", () => {
 
   it("escalates ambiguous products instead of guessing", async () => {
     const { t, acct, product } = await setup();
-    const second = await as(t, (ctx) => upsertProduct(ctx, { name: "Nimbus Mug", url: "https://shop.example.com/nimbus", priceMinor: 1800, currency: "USD", keywords: ["mug"] }));
+    const second = await as(t, (ctx) =>
+      upsertProduct(ctx, {
+        name: "Nimbus Mug",
+        url: "https://shop.example.com/nimbus",
+        priceMinor: 1800,
+        currency: "USD",
+        keywords: ["mug"],
+      }),
+    );
     const mediaId = `m_${randomUUID()}`;
-    await withTenant(t.workspaceId, (tx) => tx.insert(s.contentItems).values({ workspaceId: t.workspaceId, title: "Bundle", format: "post", status: "published", productIds: [product.id, second.id], publishedMediaId: mediaId, connectedAccountId: acct.id }));
+    await withTenant(t.workspaceId, (tx) =>
+      tx.insert(s.contentItems).values({
+        workspaceId: t.workspaceId,
+        title: "Bundle",
+        format: "post",
+        status: "published",
+        productIds: [product.id, second.id],
+        publishedMediaId: mediaId,
+        connectedAccountId: acct.id,
+      }),
+    );
     const { commentId } = await comment(acct.externalId, mediaId, "link please");
     const d = await conv(t, commentId);
     expect(d.conversation.status).toBe("needs_human");
@@ -100,7 +170,9 @@ describe("comment-to-DM sales assistant", () => {
 
   it("never sends unapproved URLs: product URL off the allowlist escalates", async () => {
     const { t, acct, mediaId } = await setup({ productUrl: "https://untrusted-shop.example.net/aurora" });
-    await withTenant(t.workspaceId, (tx) => tx.delete(s.allowedDomains).where(eq(s.allowedDomains.domain, "untrusted-shop.example.net")));
+    await withTenant(t.workspaceId, (tx) =>
+      tx.delete(s.allowedDomains).where(eq(s.allowedDomains.domain, "untrusted-shop.example.net")),
+    );
     const { commentId } = await comment(acct.externalId, mediaId, "send link");
     const d = await conv(t, commentId);
     expect(d.conversation.status).toBe("needs_human");
@@ -117,7 +189,17 @@ describe("comment-to-DM sales assistant", () => {
 
   it("blocks private replies when permissions are missing", async () => {
     const { t, acct, mediaId } = await setup();
-    await withTenant(t.workspaceId, (tx) => tx.update(s.providerCapabilities).set({ status: "unavailable", reason: "Missing instagram_business_manage_comments" }).where(and(eq(s.providerCapabilities.accountId, acct.id), eq(s.providerCapabilities.capability, "private_reply"))));
+    await withTenant(t.workspaceId, (tx) =>
+      tx
+        .update(s.providerCapabilities)
+        .set({ status: "unavailable", reason: "Missing instagram_business_manage_comments" })
+        .where(
+          and(
+            eq(s.providerCapabilities.accountId, acct.id),
+            eq(s.providerCapabilities.capability, "private_reply"),
+          ),
+        ),
+    );
     const { commentId } = await comment(acct.externalId, mediaId, "LINK");
     const d = await conv(t, commentId);
     const priv = d.drafts.find((x) => x.actionType === "private_comment_reply")!;
@@ -130,7 +212,12 @@ describe("comment-to-DM sales assistant", () => {
     const { commentId } = await comment(acct.externalId, mediaId, "LINK");
     const d = await conv(t, commentId);
     // Simulate approval landing after the window closed.
-    await withTenant(t.workspaceId, (tx) => tx.update(s.inboxMessages).set({ providerCreatedAt: new Date(Date.now() - 8 * 86400_000) }).where(eq(s.inboxMessages.conversationId, d.conversation.id)));
+    await withTenant(t.workspaceId, (tx) =>
+      tx
+        .update(s.inboxMessages)
+        .set({ providerCreatedAt: new Date(Date.now() - 8 * 86400_000) })
+        .where(eq(s.inboxMessages.conversationId, d.conversation.id)),
+    );
     const priv = d.drafts.find((x) => x.actionType === "private_comment_reply")!;
     const ap = (await as(t, (ctx) => getApproval(ctx, priv.approvalRequestId!))).approval;
     await as(t, (ctx) => decide(ctx, ap.id, { decision: "approve", payloadHash: ap.payloadHash }));
@@ -146,8 +233,12 @@ describe("comment-to-DM sales assistant", () => {
     const { commentId } = await comment(acct.externalId, mediaId, "LINK");
     const priv = (await conv(t, commentId)).drafts.find((x) => x.actionType === "private_comment_reply")!;
     await as(t, (ctx) => editDraft(ctx, priv.id, "Hi! Here it is: https://shop.example.com/aurora"));
-    expect((await as(t, (ctx) => getApproval(ctx, priv.approvalRequestId!))).approval.status).toBe("invalidated");
-    await expect(as(t, (ctx) => editDraft(ctx, priv.id, "Only $9 today! https://shop.example.com/aurora"))).resolves.toMatchObject({ status: "blocked" });
+    expect((await as(t, (ctx) => getApproval(ctx, priv.approvalRequestId!))).approval.status).toBe(
+      "invalidated",
+    );
+    await expect(
+      as(t, (ctx) => editDraft(ctx, priv.id, "Only $9 today! https://shop.example.com/aurora")),
+    ).resolves.toMatchObject({ status: "blocked" });
   });
 
   it("human takeover discards pending drafts and disables automation for the conversation", async () => {
@@ -170,18 +261,38 @@ describe("comment-to-DM sales assistant", () => {
         name: "LINK auto-reply",
         approvalMode: "bounded_auto",
         accountId: acct.id,
-        config: { triggers: ["LINK"], allowedIntents: ["product_link"], productIds: [product.id], sendPublicReply: false, sendPrivateReply: true, limits: { maxPerHour: 1, maxPerDay: 10, perUserCooldownHours: 24 } },
+        config: {
+          triggers: ["LINK"],
+          allowedIntents: ["product_link"],
+          productIds: [product.id],
+          sendPublicReply: false,
+          sendPrivateReply: true,
+          limits: { maxPerHour: 1, maxPerDay: 10, perUserCooldownHours: 24 },
+        },
       }),
     );
-    await expect(as(t, (ctx) => setRuleEnabled(ctx, rule.id, true))).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
-    const test = await as(t, (ctx) => testRule(ctx, rule.id, { samples: ["LINK", "refund now"], linkedProductIds: [product.id] }));
-    expect((test as { results: Array<{ decision: string }> }).results.map((r) => r.decision)).toEqual(["auto_send", "no_match"]);
-    await expect(as(t, (ctx) => setRuleEnabled(ctx, rule.id, true), { actorType: "agent" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(as(t, (ctx) => setRuleEnabled(ctx, rule.id, true))).rejects.toMatchObject({
+      code: "VALIDATION_FAILED",
+    });
+    const test = await as(t, (ctx) =>
+      testRule(ctx, rule.id, { samples: ["LINK", "refund now"], linkedProductIds: [product.id] }),
+    );
+    expect((test as { results: Array<{ decision: string }> }).results.map((r) => r.decision)).toEqual([
+      "auto_send",
+      "no_match",
+    ]);
+    await expect(
+      as(t, (ctx) => setRuleEnabled(ctx, rule.id, true), { actorType: "agent" }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
     await as(t, (ctx) => setRuleEnabled(ctx, rule.id, true));
 
     const c1 = await comment(acct.externalId, mediaId, "LINK");
     const d1 = await conv(t, c1.commentId);
-    expect(d1.drafts[0]).toMatchObject({ actionType: "private_comment_reply", status: "sent", automationRuleId: rule.id });
+    expect(d1.drafts[0]).toMatchObject({
+      actionType: "private_comment_reply",
+      status: "sent",
+      automationRuleId: rule.id,
+    });
 
     // Rate limit: maxPerHour = 1 → the next auto-send is blocked, not sent.
     const c2 = await comment(acct.externalId, mediaId, "LINK");
@@ -211,9 +322,17 @@ describe("comment-to-DM sales assistant", () => {
     await as(t, (ctx) => decide(ctx, ap.id, { decision: "approve", payloadHash: ap.payloadHash }));
     await drain();
     // Replay the send job: idempotency key is per comment, so nothing new is sent.
-    await withTenant(t.workspaceId, (tx) => tx.insert(s.jobs).values({ type: "inbox.send_reply", workspaceId: t.workspaceId, payload: { draftId: priv.id, approvalId: ap.id } }));
+    await withTenant(t.workspaceId, (tx) =>
+      tx.insert(s.jobs).values({
+        type: "inbox.send_reply",
+        workspaceId: t.workspaceId,
+        payload: { draftId: priv.id, approvalId: ap.id },
+      }),
+    );
     await drain();
-    const sent = await withTenant(t.workspaceId, (tx) => tx.select().from(s.externalActions).where(eq(s.externalActions.subjectId, priv.id)));
+    const sent = await withTenant(t.workspaceId, (tx) =>
+      tx.select().from(s.externalActions).where(eq(s.externalActions.subjectId, priv.id)),
+    );
     expect(sent).toHaveLength(1);
     const msgs = (await conv(t, commentId)).messages.filter((m) => m.kind === "private_reply");
     expect(msgs).toHaveLength(1);
@@ -222,10 +341,30 @@ describe("comment-to-DM sales assistant", () => {
   it("a comment alone does not open a DM conversation; inbound DMs open a 24h window", async () => {
     const { t, acct } = await setup();
     const igsid = `u_${randomUUID().slice(0, 8)}`;
-    const payload = { object: "instagram", entry: [{ id: acct.externalId, time: Date.now(), messaging: [{ sender: { id: igsid }, recipient: { id: acct.externalId }, timestamp: Date.now() - 25 * 3600_000, message: { mid: `mid_${randomUUID()}`, text: "price of the candle?" } }] }] };
-    await withSystem((tx) => ingestWebhookEvents(tx, "mock_instagram", normalizeMetaWebhook(payload).events, "corr"));
+    const payload = {
+      object: "instagram",
+      entry: [
+        {
+          id: acct.externalId,
+          time: Date.now(),
+          messaging: [
+            {
+              sender: { id: igsid },
+              recipient: { id: acct.externalId },
+              timestamp: Date.now() - 25 * 3600_000,
+              message: { mid: `mid_${randomUUID()}`, text: "price of the candle?" },
+            },
+          ],
+        },
+      ],
+    };
+    await withSystem((tx) =>
+      ingestWebhookEvents(tx, "mock_instagram", normalizeMetaWebhook(payload).events, "corr"),
+    );
     await drain();
-    const rows = await withTenant(t.workspaceId, (tx) => tx.select().from(s.inboxConversations).where(eq(s.inboxConversations.externalThreadId, igsid)));
+    const rows = await withTenant(t.workspaceId, (tx) =>
+      tx.select().from(s.inboxConversations).where(eq(s.inboxConversations.externalThreadId, igsid)),
+    );
     const d = await as(t, (ctx) => conversationDetail(ctx, rows[0]!.id));
     const dm = d.drafts.find((x) => x.actionType === "dm_reply");
     expect(dm?.status).toBe("blocked");
@@ -237,8 +376,31 @@ describe("comment-to-DM sales assistant", () => {
     const { commentId } = await comment(acct.externalId, mediaId, "Price?");
     const d = await conv(t, commentId);
     const actions = d.history.map((h) => h.action);
-    expect(actions).toEqual(expect.arrayContaining(["inbox.received", "inbox.classified", "inbox.drafted", "inbox.approval_requested"]));
-    const unknown = await withSystem((tx) => ingestWebhookEvents(tx, "mock_instagram", normalizeMetaWebhook({ object: "instagram", entry: [{ id: "not-connected", field: "comments", value: { id: `c_${randomUUID()}`, text: "x", from: { id: "u" } } }] }).events, "c"));
+    expect(actions).toEqual(
+      expect.arrayContaining([
+        "inbox.received",
+        "inbox.classified",
+        "inbox.drafted",
+        "inbox.approval_requested",
+      ]),
+    );
+    const unknown = await withSystem((tx) =>
+      ingestWebhookEvents(
+        tx,
+        "mock_instagram",
+        normalizeMetaWebhook({
+          object: "instagram",
+          entry: [
+            {
+              id: "not-connected",
+              field: "comments",
+              value: { id: `c_${randomUUID()}`, text: "x", from: { id: "u" } },
+            },
+          ],
+        }).events,
+        "c",
+      ),
+    );
     expect(unknown[0]?.status).toBe("ignored_unknown_account");
   });
 });

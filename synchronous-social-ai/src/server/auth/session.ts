@@ -26,7 +26,11 @@ export async function createSession(userId: string, meta: { ip?: string | null; 
   const token = randomToken(32);
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
   const first = await withSystem((tx) =>
-    tx.select({ workspaceId: memberships.workspaceId }).from(memberships).where(eq(memberships.userId, userId)).limit(1),
+    tx
+      .select({ workspaceId: memberships.workspaceId })
+      .from(memberships)
+      .where(eq(memberships.userId, userId))
+      .limit(1),
   );
   await withSystem((tx) =>
     tx.insert(sessions).values({
@@ -48,13 +52,23 @@ export async function destroySession(token: string) {
 export interface SessionInfo {
   sessionId: string;
   user: { id: string; email: string; name: string };
-  workspace: { id: string; name: string; slug: string; isDemo: boolean; killSwitch: boolean; timezone: string } | null;
+  workspace: {
+    id: string;
+    name: string;
+    slug: string;
+    isDemo: boolean;
+    killSwitch: boolean;
+    timezone: string;
+  } | null;
   role: Role | null;
   memberships: Array<{ workspaceId: string; name: string; role: Role }>;
 }
 
 /** Resolve a session token to user + active workspace membership. Membership is always re-verified. */
-export async function resolveSession(token: string | undefined, workspaceOverride?: string | null): Promise<SessionInfo | null> {
+export async function resolveSession(
+  token: string | undefined,
+  workspaceOverride?: string | null,
+): Promise<SessionInfo | null> {
   if (!token) return null;
   const sid = sha256(token);
   return withSystem(async (tx) => {
@@ -67,7 +81,12 @@ export async function resolveSession(token: string | undefined, workspaceOverrid
     const row = rows[0];
     if (!row || row.u.disabledAt) return null;
     const ms = await tx
-      .select({ workspaceId: memberships.workspaceId, role: memberships.role, name: workspaces.name, deletedAt: workspaces.deletedAt })
+      .select({
+        workspaceId: memberships.workspaceId,
+        role: memberships.role,
+        name: workspaces.name,
+        deletedAt: workspaces.deletedAt,
+      })
       .from(memberships)
       .innerJoin(workspaces, eq(workspaces.id, memberships.workspaceId))
       .where(eq(memberships.userId, row.u.id));
@@ -90,7 +109,10 @@ export async function resolveSession(token: string | undefined, workspaceOverrid
     }
     // Sliding expiration: extend when less than half the TTL remains.
     if (row.s.expiresAt.getTime() - Date.now() < SESSION_TTL_MS / 2) {
-      await tx.update(sessions).set({ expiresAt: new Date(Date.now() + SESSION_TTL_MS) }).where(eq(sessions.id, sid));
+      await tx
+        .update(sessions)
+        .set({ expiresAt: new Date(Date.now() + SESSION_TTL_MS) })
+        .where(eq(sessions.id, sid));
     }
     return {
       sessionId: sid,

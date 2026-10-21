@@ -80,8 +80,16 @@ class S3Storage implements ObjectStorage {
   }
   async put(key: string, data: Buffer, contentType: string) {
     const { PutObjectCommand } = await import("@aws-sdk/client-s3");
-    await (await this.client()).send(
-      new PutObjectCommand({ Bucket: this.bucket(), Key: key, Body: data, ContentType: contentType, ServerSideEncryption: "AES256" }),
+    await (
+      await this.client()
+    ).send(
+      new PutObjectCommand({
+        Bucket: this.bucket(),
+        Key: key,
+        Body: data,
+        ContentType: contentType,
+        ServerSideEncryption: "AES256",
+      }),
     );
   }
   async get(key: string) {
@@ -98,16 +106,21 @@ class S3Storage implements ObjectStorage {
     const c = await this.client();
     let token: string | undefined;
     do {
-      const page = await c.send(new ListObjectsV2Command({ Bucket: this.bucket(), Prefix: prefix, ContinuationToken: token }));
+      const page = await c.send(
+        new ListObjectsV2Command({ Bucket: this.bucket(), Prefix: prefix, ContinuationToken: token }),
+      );
       const keys = (page.Contents ?? []).map((o) => ({ Key: o.Key! }));
-      if (keys.length) await c.send(new DeleteObjectsCommand({ Bucket: this.bucket(), Delete: { Objects: keys } }));
+      if (keys.length)
+        await c.send(new DeleteObjectsCommand({ Bucket: this.bucket(), Delete: { Objects: keys } }));
       token = page.NextContinuationToken;
     } while (token);
   }
   async signedUrl(key: string, ttlSeconds = 900) {
     const { GetObjectCommand } = await import("@aws-sdk/client-s3");
     const { getSignedUrl } = await import("@aws-sdk/s3-request-presigner");
-    return getSignedUrl(await this.client(), new GetObjectCommand({ Bucket: this.bucket(), Key: key }), { expiresIn: ttlSeconds });
+    return getSignedUrl(await this.client(), new GetObjectCommand({ Bucket: this.bucket(), Key: key }), {
+      expiresIn: ttlSeconds,
+    });
   }
 }
 

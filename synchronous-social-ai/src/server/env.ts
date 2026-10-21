@@ -30,7 +30,10 @@ const schema = z.object({
   META_APP_ID: z.string().optional(),
   META_APP_SECRET: z.string().optional(),
   META_WEBHOOK_VERIFY_TOKEN: z.string().optional(),
-  META_GRAPH_VERSION: z.string().regex(/^v\d+\.\d+$/).default("v26.0"),
+  META_GRAPH_VERSION: z
+    .string()
+    .regex(/^v\d+\.\d+$/)
+    .default("v26.0"),
   META_ADS_TEST_MODE: z
     .enum(["true", "false"])
     .default("true")

@@ -26,6 +26,7 @@ export function requirePermission(ctx: Ctx, permission: Permission) {
 }
 
 export function requireUser(ctx: Ctx): string {
-  if (!ctx.userId || ctx.actorType !== "user") throw new AppError("FORBIDDEN", "This action requires a human user");
+  if (!ctx.userId || ctx.actorType !== "user")
+    throw new AppError("FORBIDDEN", "This action requires a human user");
   return ctx.userId;
 }

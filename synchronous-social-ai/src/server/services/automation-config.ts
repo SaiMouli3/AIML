@@ -2,7 +2,17 @@ import { z } from "zod";
 import { INTENTS } from "../agents/contracts";
 
 /** Placeholders allowed in reply templates. Values are filled from verified tenant data only. */
-export const TEMPLATE_PLACEHOLDERS = ["username", "product_name", "product_url", "price", "variants", "stock", "delivery", "offer", "offer_end"] as const;
+export const TEMPLATE_PLACEHOLDERS = [
+  "username",
+  "product_name",
+  "product_url",
+  "price",
+  "variants",
+  "stock",
+  "delivery",
+  "offer",
+  "offer_end",
+] as const;
 
 export const commentToDmConfigSchema = z.object({
   triggers: z.array(z.string().trim().min(1).max(40)).max(20).default([]),
@@ -10,7 +20,10 @@ export const commentToDmConfigSchema = z.object({
   productIds: z.array(z.uuid()).max(50).default([]),
   sendPublicReply: z.boolean().default(true),
   sendPrivateReply: z.boolean().default(true),
-  publicReplyTemplate: z.string().max(300).default("Thanks @{username}! We've sent you the details in a private message."),
+  publicReplyTemplate: z
+    .string()
+    .max(300)
+    .default("Thanks @{username}! We've sent you the details in a private message."),
   privateReplyTemplate: z.string().max(1000).default("Hi @{username}! Here's {product_name}: {product_url}"),
   limits: z
     .object({
@@ -42,7 +55,10 @@ export function templatePlaceholders(t: string): string[] {
   return [...t.matchAll(/\{([a-z_]+)\}/g)].map((m) => m[1]!);
 }
 
-export function renderTemplate(t: string, values: Partial<Record<(typeof TEMPLATE_PLACEHOLDERS)[number], string | null | undefined>>) {
+export function renderTemplate(
+  t: string,
+  values: Partial<Record<(typeof TEMPLATE_PLACEHOLDERS)[number], string | null | undefined>>,
+) {
   const missing: string[] = [];
   const text = t.replace(/\{([a-z_]+)\}/g, (_, k: string) => {
     const v = values[k as keyof typeof values];
@@ -57,8 +73,15 @@ export function renderTemplate(t: string, values: Partial<Record<(typeof TEMPLAT
 
 /** Is `now` inside the rule's weekly schedule, evaluated in the rule's timezone? */
 export function withinSchedule(cfg: CommentToDmConfig, timezone: string, now = new Date()) {
-  const parts = new Intl.DateTimeFormat("en-US", { timeZone: timezone, weekday: "short", hour: "numeric", hourCycle: "h23" }).formatToParts(now);
-  const wd = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(parts.find((p) => p.type === "weekday")!.value);
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    weekday: "short",
+    hour: "numeric",
+    hourCycle: "h23",
+  }).formatToParts(now);
+  const wd = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(
+    parts.find((p) => p.type === "weekday")!.value,
+  );
   const hour = Number(parts.find((p) => p.type === "hour")!.value);
   return cfg.schedule.days.includes(wd) && hour >= cfg.schedule.startHour && hour < cfg.schedule.endHour;
 }
@@ -66,5 +89,10 @@ export function withinSchedule(cfg: CommentToDmConfig, timezone: string, now = n
 export function triggerMatches(cfg: CommentToDmConfig, text: string) {
   if (!cfg.triggers.length) return true;
   const t = text.toLowerCase();
-  return cfg.triggers.some((tr) => new RegExp(`(^|[^\\p{L}\\p{N}])${tr.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}($|[^\\p{L}\\p{N}])`, "u").test(t));
+  return cfg.triggers.some((tr) =>
+    new RegExp(
+      `(^|[^\\p{L}\\p{N}])${tr.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}($|[^\\p{L}\\p{N}])`,
+      "u",
+    ).test(t),
+  );
 }

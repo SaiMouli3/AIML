@@ -3,7 +3,10 @@ import type { Ctx } from "../context";
 import * as s from "../db/schema";
 
 /** In-app notifications. `userId` null means visible to every member. Email adapter: see docs/integrations.md. */
-export async function notify(ctx: Ctx, n: { kind: string; title: string; body?: string; link?: string; userId?: string | null }) {
+export async function notify(
+  ctx: Ctx,
+  n: { kind: string; title: string; body?: string; link?: string; userId?: string | null },
+) {
   await ctx.tx.insert(s.notifications).values({
     workspaceId: ctx.workspaceId,
     userId: n.userId ?? null,
@@ -15,7 +18,10 @@ export async function notify(ctx: Ctx, n: { kind: string; title: string; body?: 
 }
 
 export async function listNotifications(ctx: Ctx, limit = 30) {
-  const mine = or(isNull(s.notifications.userId), eq(s.notifications.userId, ctx.userId ?? "00000000-0000-0000-0000-000000000000"));
+  const mine = or(
+    isNull(s.notifications.userId),
+    eq(s.notifications.userId, ctx.userId ?? "00000000-0000-0000-0000-000000000000"),
+  );
   const items = await ctx.tx
     .select()
     .from(s.notifications)

@@ -33,7 +33,9 @@ export const ACTION_TIERS = {
 export type ActionType = keyof typeof ACTION_TIERS;
 export type Tier = 0 | 1 | 2 | 3 | 4;
 
-export const EXTERNAL_ACTIONS = (Object.keys(ACTION_TIERS) as ActionType[]).filter((a) => ACTION_TIERS[a] >= 3);
+export const EXTERNAL_ACTIONS = (Object.keys(ACTION_TIERS) as ActionType[]).filter(
+  (a) => ACTION_TIERS[a] >= 3,
+);
 
 export const ACTION_LABELS: Record<ActionType, string> = {
   read_company_facts: "Read company facts",
@@ -109,10 +111,12 @@ export function evaluateAction(input: PolicyInput): PolicyDecision {
 
   if (tier <= 2) return { allowed: true, tier, via: "tier_auto", reasons };
 
-  if (input.workspace.killSwitch) reasons.push("Workspace emergency kill switch is active; all external mutations are blocked.");
+  if (input.workspace.killSwitch)
+    reasons.push("Workspace emergency kill switch is active; all external mutations are blocked.");
   if (input.account) {
     if (input.account.status !== "connected") reasons.push(`Destination account is ${input.account.status}.`);
-    if (input.account.mode === "mock" && !input.mocksAllowed) reasons.push("Mock accounts cannot execute in this environment.");
+    if (input.account.mode === "mock" && !input.mocksAllowed)
+      reasons.push("Mock accounts cannot execute in this environment.");
   }
   if (reasons.length) return { allowed: false, tier, via: null, reasons };
 
@@ -120,12 +124,15 @@ export function evaluateAction(input: PolicyInput): PolicyDecision {
   if (input.approval) {
     const a = input.approval;
     const approvalReasons: string[] = [];
-    if (a.actionType !== input.actionType) approvalReasons.push("Approval was granted for a different action type.");
+    if (a.actionType !== input.actionType)
+      approvalReasons.push("Approval was granted for a different action type.");
     if (a.status !== "approved") approvalReasons.push(`Approval status is ${a.status}.`);
     if (a.executedAt) approvalReasons.push("Approval has already been used.");
     if (a.expiresAt && a.expiresAt.getTime() <= now.getTime()) approvalReasons.push("Approval has expired.");
     if (!input.currentPayloadHash || input.currentPayloadHash !== a.payloadHash) {
-      approvalReasons.push("Content or action details changed after approval; the approval no longer applies.");
+      approvalReasons.push(
+        "Content or action details changed after approval; the approval no longer applies.",
+      );
     }
     if (approvalReasons.length === 0) return { allowed: true, tier, via: "approval", reasons: [] };
     reasons.push(...approvalReasons);
@@ -136,15 +143,19 @@ export function evaluateAction(input: PolicyInput): PolicyDecision {
     const p = input.policy;
     const policyReasons: string[] = [];
     if (!p.enabled) policyReasons.push("Automation rule is disabled.");
-    if (p.approvalMode !== "bounded_auto") policyReasons.push("Automation rule requires approval for every response.");
+    if (p.approvalMode !== "bounded_auto")
+      policyReasons.push("Automation rule requires approval for every response.");
     if (!p.enabledBy) policyReasons.push("Automation rule was not enabled by an authorized human.");
-    if (!p.allowedActionTypes.includes(input.actionType)) policyReasons.push("Rule does not authorize this action type.");
-    if (p.accountId && input.accountId && p.accountId !== input.accountId) policyReasons.push("Rule is scoped to a different account.");
+    if (!p.allowedActionTypes.includes(input.actionType))
+      policyReasons.push("Rule does not authorize this action type.");
+    if (p.accountId && input.accountId && p.accountId !== input.accountId)
+      policyReasons.push("Rule is scoped to a different account.");
     if (!p.accountId) policyReasons.push("Bounded rules must be scoped to a single account.");
     if (p.activeFrom && now < p.activeFrom) policyReasons.push("Rule is not active yet.");
     if (p.activeUntil && now > p.activeUntil) policyReasons.push("Rule has expired.");
     if (!p.withinRateLimit) policyReasons.push("Rule rate limit reached.");
-    if (input.workspace.automationPaused) policyReasons.push("Automated replies are paused for this workspace.");
+    if (input.workspace.automationPaused)
+      policyReasons.push("Automated replies are paused for this workspace.");
     if (input.account?.automationPaused) policyReasons.push("Automated replies are paused for this account.");
     if (tier >= 4) policyReasons.push("Tier 4 financial actions cannot run under automation rules.");
     if (policyReasons.length === 0) return { allowed: true, tier, via: "bounded_policy", reasons: [] };
@@ -169,12 +180,18 @@ export interface SpendCheckInput {
  * Hard spend ceiling enforced before every ads mutation. Open-ended campaigns (no end date) are
  * evaluated as a full 31-day month. A zero cap means "no paid spend allowed".
  */
-export function checkSpendCap(i: SpendCheckInput): { allowed: boolean; projectedMinor: number; reasons: string[] } {
+export function checkSpendCap(i: SpendCheckInput): {
+  allowed: boolean;
+  projectedMinor: number;
+  reasons: string[];
+} {
   const reasons: string[] = [];
   const days = i.durationDays && i.durationDays > 0 ? Math.min(i.durationDays, 31) : 31;
   const projectedMinor = i.dailyBudgetMinor * days;
-  if (!Number.isFinite(i.dailyBudgetMinor) || i.dailyBudgetMinor <= 0) reasons.push("Daily budget must be positive.");
-  if (i.workspaceMonthlyCapMinor <= 0 && !i.testMode) reasons.push("Workspace monthly ad spend cap is 0. Set a cap in Settings before launching.");
+  if (!Number.isFinite(i.dailyBudgetMinor) || i.dailyBudgetMinor <= 0)
+    reasons.push("Daily budget must be positive.");
+  if (i.workspaceMonthlyCapMinor <= 0 && !i.testMode)
+    reasons.push("Workspace monthly ad spend cap is 0. Set a cap in Settings before launching.");
   else if (!i.testMode && i.committedThisMonthMinor + projectedMinor > i.workspaceMonthlyCapMinor) {
     reasons.push(
       `Projected spend ${projectedMinor} plus committed ${i.committedThisMonthMinor} exceeds the workspace cap of ${i.workspaceMonthlyCapMinor} (minor units).`,
@@ -199,7 +216,9 @@ export function requiredApprovalsFor(
 export const MAX_AGENT_TOOL_TIER: Tier = 2;
 
 export function agentMayUseTool(allowedTools: readonly string[], tool: string, toolTier: Tier) {
-  if (!allowedTools.includes(tool)) return { allowed: false, reason: `Tool ${tool} is not in this agent's allowlist.` };
-  if (toolTier > MAX_AGENT_TOOL_TIER) return { allowed: false, reason: `Agents cannot invoke Tier ${toolTier} tools directly.` };
+  if (!allowedTools.includes(tool))
+    return { allowed: false, reason: `Tool ${tool} is not in this agent's allowlist.` };
+  if (toolTier > MAX_AGENT_TOOL_TIER)
+    return { allowed: false, reason: `Agents cannot invoke Tier ${toolTier} tools directly.` };
   return { allowed: true, reason: null };
 }

@@ -48,7 +48,13 @@ export async function uploadKnowledgeSource(ctx: Ctx, file: { name: string; type
       correlationId: ctx.correlationId,
     });
   }
-  await audit(ctx, { action: "brain.source_uploaded", targetType: "knowledge_source", targetId: id, result: quarantined ? "blocked" : "success", metadata: { mimeType: v.type, size: file.data.length, scan: scan.status } });
+  await audit(ctx, {
+    action: "brain.source_uploaded",
+    targetType: "knowledge_source",
+    targetId: id,
+    result: quarantined ? "blocked" : "success",
+    metadata: { mimeType: v.type, size: file.data.length, scan: scan.status },
+  });
   return src!;
 }
 
@@ -58,11 +64,23 @@ export async function addTextSource(ctx: Ctx, title: string, text: string) {
   if (!text.trim()) throw new AppError("VALIDATION_FAILED", "Text is empty");
   const [src] = await ctx.tx
     .insert(s.knowledgeSources)
-    .values({ workspaceId: ctx.workspaceId, kind: "manual", title: title.slice(0, 200), status: "processing", mimeType: "text/plain", sizeBytes: Buffer.byteLength(text), sha256: sha256(text), createdBy: ctx.userId })
+    .values({
+      workspaceId: ctx.workspaceId,
+      kind: "manual",
+      title: title.slice(0, 200),
+      status: "processing",
+      mimeType: "text/plain",
+      sizeBytes: Buffer.byteLength(text),
+      sha256: sha256(text),
+      createdBy: ctx.userId,
+    })
     .returning();
   await ctx.tx.insert(s.knowledgeDocuments).values({ workspaceId: ctx.workspaceId, sourceId: src!.id, text });
   const n = await storeChunks(ctx, src!.id, text);
-  await ctx.tx.update(s.knowledgeSources).set({ status: "ready", chunkCount: n }).where(eq(s.knowledgeSources.id, src!.id));
+  await ctx.tx
+    .update(s.knowledgeSources)
+    .set({ status: "ready", chunkCount: n })
+    .where(eq(s.knowledgeSources.id, src!.id));
   await audit(ctx, { action: "brain.source_added", targetType: "knowledge_source", targetId: src!.id });
   return { ...src!, status: "ready", chunkCount: n };
 }
@@ -78,7 +96,10 @@ export async function deleteSource(ctx: Ctx, id: string) {
   if (!src) throw new AppError("NOT_FOUND", "Source not found");
   await ctx.tx.delete(s.knowledgeChunks).where(eq(s.knowledgeChunks.sourceId, id));
   await ctx.tx.delete(s.knowledgeDocuments).where(eq(s.knowledgeDocuments.sourceId, id));
-  await ctx.tx.update(s.knowledgeSources).set({ deletedAt: new Date(), status: "deleted" }).where(eq(s.knowledgeSources.id, id));
+  await ctx.tx
+    .update(s.knowledgeSources)
+    .set({ deletedAt: new Date(), status: "deleted" })
+    .where(eq(s.knowledgeSources.id, id));
   if (src.storageKey) await storage().delete(src.storageKey);
   await audit(ctx, { action: "brain.source_deleted", targetType: "knowledge_source", targetId: id });
 }
@@ -112,8 +133,16 @@ registerJob("knowledge.process", {
   async run(jc, payload) {
     const sourceId = String(payload.sourceId);
     const src = await jc.tenant(async (ctx) => {
-      const r = await ctx.tx.select().from(s.knowledgeSources).where(eq(s.knowledgeSources.id, sourceId)).limit(1);
-      if (r[0]) await ctx.tx.update(s.knowledgeSources).set({ status: "processing" }).where(eq(s.knowledgeSources.id, sourceId));
+      const r = await ctx.tx
+        .select()
+        .from(s.knowledgeSources)
+        .where(eq(s.knowledgeSources.id, sourceId))
+        .limit(1);
+      if (r[0])
+        await ctx.tx
+          .update(s.knowledgeSources)
+          .set({ status: "processing" })
+          .where(eq(s.knowledgeSources.id, sourceId));
       return r[0];
     });
     if (!src || !src.storageKey || src.deletedAt) return { skipped: true };
@@ -122,19 +151,36 @@ registerJob("knowledge.process", {
       text = await extractText(await storage().get(src.storageKey), src.mimeType ?? "text/plain");
     } catch (e) {
       await jc.tenant((ctx) =>
-        ctx.tx.update(s.knowledgeSources).set({ status: "failed", error: `Text extraction failed: ${(e as Error).message.slice(0, 200)}` }).where(eq(s.knowledgeSources.id, sourceId)),
+        ctx.tx
+          .update(s.knowledgeSources)
+          .set({ status: "failed", error: `Text extraction failed: ${(e as Error).message.slice(0, 200)}` })
+          .where(eq(s.knowledgeSources.id, sourceId)),
       );
       return { failed: true };
     }
     return jc.tenant(async (ctx) => {
       if (!text.trim()) {
-        await ctx.tx.update(s.knowledgeSources).set({ status: "unsupported", error: "No extractable text (scanned PDF?). Paste the text instead." }).where(eq(s.knowledgeSources.id, sourceId));
+        await ctx.tx
+          .update(s.knowledgeSources)
+          .set({
+            status: "unsupported",
+            error: "No extractable text (scanned PDF?). Paste the text instead.",
+          })
+          .where(eq(s.knowledgeSources.id, sourceId));
         return { chunks: 0 };
       }
       await ctx.tx.insert(s.knowledgeDocuments).values({ workspaceId: ctx.workspaceId, sourceId, text });
       const n = await storeChunks(ctx, sourceId, text);
-      await ctx.tx.update(s.knowledgeSources).set({ status: "ready", chunkCount: n, error: null }).where(eq(s.knowledgeSources.id, sourceId));
-      await audit(ctx, { action: "brain.source_processed", targetType: "knowledge_source", targetId: sourceId, metadata: { chunks: n } });
+      await ctx.tx
+        .update(s.knowledgeSources)
+        .set({ status: "ready", chunkCount: n, error: null })
+        .where(eq(s.knowledgeSources.id, sourceId));
+      await audit(ctx, {
+        action: "brain.source_processed",
+        targetType: "knowledge_source",
+        targetId: sourceId,
+        metadata: { chunks: n },
+      });
       return { chunks: n };
     });
   },

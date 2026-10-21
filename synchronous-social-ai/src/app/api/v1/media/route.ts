@@ -15,5 +15,9 @@ export const POST = route({ permission: "content.write", rateLimit: 60 }, async 
     license: form.get("rightsLicense") || undefined,
     consent: form.get("consent") === "on" ? true : undefined,
   });
-  return uploadMedia(ctx, { name: file.name, type: file.type, data: Buffer.from(await file.arrayBuffer()) }, { altText: String(form.get("altText") ?? "") || undefined, rights });
+  return uploadMedia(
+    ctx,
+    { name: file.name, type: file.type, data: Buffer.from(await file.arrayBuffer()) },
+    { altText: String(form.get("altText") ?? "") || undefined, rights },
+  );
 });

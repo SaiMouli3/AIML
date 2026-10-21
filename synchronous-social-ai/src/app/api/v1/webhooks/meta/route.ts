@@ -15,7 +15,10 @@ export function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const token = env().META_WEBHOOK_VERIFY_TOKEN;
   if (sp.get("hub.mode") === "subscribe" && token && safeEqual(sp.get("hub.verify_token") ?? "", token)) {
-    return new NextResponse(sp.get("hub.challenge") ?? "", { status: 200, headers: { "Content-Type": "text/plain" } });
+    return new NextResponse(sp.get("hub.challenge") ?? "", {
+      status: 200,
+      headers: { "Content-Type": "text/plain" },
+    });
   }
   return new NextResponse("Forbidden", { status: 403 });
 }

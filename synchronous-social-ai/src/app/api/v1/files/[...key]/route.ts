@@ -2,7 +2,15 @@ import { NextResponse, type NextRequest } from "next/server";
 import { storage, verifyLocalSignature } from "@/server/providers/storage/storage";
 import { env } from "@/server/env";
 
-const TYPES: Record<string, string> = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif", mp4: "video/mp4", mov: "video/quicktime" };
+const TYPES: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  gif: "image/gif",
+  mp4: "video/mp4",
+  mov: "video/quicktime",
+};
 
 /**
  * Serves locally stored objects via short-lived HMAC-signed URLs (the local-driver equivalent of S3
@@ -14,7 +22,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ key:
   const key = (await params).key.join("/");
   const exp = Number(req.nextUrl.searchParams.get("exp"));
   const sig = req.nextUrl.searchParams.get("sig") ?? "";
-  if (!verifyLocalSignature(key, exp, sig) || key.includes("/knowledge/") || key.includes("..")) return new NextResponse("Forbidden", { status: 403 });
+  if (!verifyLocalSignature(key, exp, sig) || key.includes("/knowledge/") || key.includes(".."))
+    return new NextResponse("Forbidden", { status: 403 });
   try {
     const data = await storage().get(key);
     const ext = key.split(".").pop()?.toLowerCase() ?? "";

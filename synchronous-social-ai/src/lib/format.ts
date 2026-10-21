@@ -1,7 +1,11 @@
 export function fmtDateTime(d: Date | string | null | undefined, tz?: string | null) {
   if (!d) return "—";
   const date = typeof d === "string" ? new Date(d) : d;
-  return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: tz ?? undefined }).format(date);
+  return new Intl.DateTimeFormat("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: tz ?? undefined,
+  }).format(date);
 }
 export function fmtDate(d: Date | string | null | undefined, tz?: string | null) {
   if (!d) return "—";

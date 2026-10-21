@@ -8,7 +8,13 @@ export const POST = route({ auth: "none", body: signupSchema, rateLimit: 10 }, a
   const ip = clientIp(req);
   const { user, workspace } = await signup(body, { ip });
   const { token, expiresAt } = await createSession(user.id, { ip, userAgent: req.headers.get("user-agent") });
-  const res = NextResponse.json({ user: { id: user.id, email: user.email, name: user.name }, workspace: { id: workspace.id, name: workspace.name } }, { status: 201 });
+  const res = NextResponse.json(
+    {
+      user: { id: user.id, email: user.email, name: user.name },
+      workspace: { id: workspace.id, name: workspace.name },
+    },
+    { status: 201 },
+  );
   res.cookies.set(sessionCookieName(), token, sessionCookieOptions(expiresAt));
   return res;
 });

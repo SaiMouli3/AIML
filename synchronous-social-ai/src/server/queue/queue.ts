@@ -6,7 +6,10 @@ import { jobs } from "../db/schema";
 export type JobRow = typeof jobs.$inferSelect;
 
 export class RetryableError extends Error {
-  constructor(message: string, readonly retryAfterMs?: number) {
+  constructor(
+    message: string,
+    readonly retryAfterMs?: number,
+  ) {
     super(message);
     this.name = "RetryableError";
   }
@@ -48,12 +51,21 @@ export async function enqueue(ex: Executor, input: EnqueueInput): Promise<JobRow
     .onConflictDoNothing({ target: jobs.idempotencyKey })
     .returning();
   if (inserted[0]) return inserted[0];
-  const existing = await ex.select().from(jobs).where(eq(jobs.idempotencyKey, input.idempotencyKey!)).limit(1);
+  const existing = await ex
+    .select()
+    .from(jobs)
+    .where(eq(jobs.idempotencyKey, input.idempotencyKey!))
+    .limit(1);
   return existing[0]!;
 }
 
 /** Exponential backoff with full jitter: base * 2^(attempt-1), capped, randomized in [50%, 100%]. */
-export function backoffMs(attempt: number, baseMs = 2000, capMs = 10 * 60 * 1000, rand = Math.random): number {
+export function backoffMs(
+  attempt: number,
+  baseMs = 2000,
+  capMs = 10 * 60 * 1000,
+  rand = Math.random,
+): number {
   const exp = Math.min(capMs, baseMs * 2 ** Math.max(0, attempt - 1));
   return Math.round(exp / 2 + rand() * (exp / 2));
 }
@@ -103,7 +115,13 @@ export async function completeJob(id: string, result: unknown) {
   await withSystem((tx) =>
     tx
       .update(jobs)
-      .set({ status: "succeeded", result: (result ?? null) as object, lockedAt: null, finishedAt: new Date(), updatedAt: new Date() })
+      .set({
+        status: "succeeded",
+        result: (result ?? null) as object,
+        lockedAt: null,
+        finishedAt: new Date(),
+        updatedAt: new Date(),
+      })
       .where(eq(jobs.id, id)),
   );
 }
@@ -119,7 +137,13 @@ export async function failJob(job: JobRow, error: unknown) {
       .update(jobs)
       .set(
         permanent || exhausted
-          ? { status: "dead", lastError: message, lockedAt: null, finishedAt: new Date(), updatedAt: new Date() }
+          ? {
+              status: "dead",
+              lastError: message,
+              lockedAt: null,
+              finishedAt: new Date(),
+              updatedAt: new Date(),
+            }
           : {
               status: "queued",
               lastError: message,
@@ -159,12 +183,20 @@ export async function rescheduleJob(id: string, delayMs: number, payload?: Recor
 export async function recoverStaleJobs(staleAfterMs: number, uncertainTypes: string[]) {
   const cutoff = new Date(Date.now() - staleAfterMs);
   return withSystem(async (tx) => {
-    const stale = await tx.select().from(jobs).where(and(eq(jobs.status, "running"), lt(jobs.lockedAt, cutoff)));
+    const stale = await tx
+      .select()
+      .from(jobs)
+      .where(and(eq(jobs.status, "running"), lt(jobs.lockedAt, cutoff)));
     for (const j of stale) {
       if (uncertainTypes.includes(j.type)) {
         await tx
           .update(jobs)
-          .set({ status: "dead", lastError: "Worker lost during external action; outcome requires reconciliation", lockedAt: null, updatedAt: new Date() })
+          .set({
+            status: "dead",
+            lastError: "Worker lost during external action; outcome requires reconciliation",
+            lockedAt: null,
+            updatedAt: new Date(),
+          })
           .where(eq(jobs.id, j.id));
       } else {
         await tx
@@ -181,7 +213,14 @@ export async function recoverStaleJobs(staleAfterMs: number, uncertainTypes: str
 export async function retryDeadJob(ex: Executor, id: string, workspaceId: string) {
   const res = await ex
     .update(jobs)
-    .set({ status: "queued", attempts: 0, runAt: new Date(), lastError: null, finishedAt: null, updatedAt: new Date() })
+    .set({
+      status: "queued",
+      attempts: 0,
+      runAt: new Date(),
+      lastError: null,
+      finishedAt: null,
+      updatedAt: new Date(),
+    })
     .where(and(eq(jobs.id, id), eq(jobs.workspaceId, workspaceId), inArray(jobs.status, ["dead", "failed"])))
     .returning();
   return res[0] ?? null;

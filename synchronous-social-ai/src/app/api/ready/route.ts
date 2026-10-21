@@ -24,6 +24,13 @@ export async function GET() {
     ok = false;
     checks.database = "unavailable";
   }
-  const providers = { llm: integrationsConfigured.llm(), meta: integrationsConfigured.meta(), higgsfield: integrationsConfigured.higgsfield() };
-  return NextResponse.json({ status: ok ? "ready" : "not_ready", checks, providers }, { status: ok ? 200 : 503 });
+  const providers = {
+    llm: integrationsConfigured.llm(),
+    meta: integrationsConfigured.meta(),
+    higgsfield: integrationsConfigured.higgsfield(),
+  };
+  return NextResponse.json(
+    { status: ok ? "ready" : "not_ready", checks, providers },
+    { status: ok ? 200 : 503 },
+  );
 }

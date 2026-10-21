@@ -15,11 +15,24 @@ export interface Tenant {
 
 export async function makeTenant(name = "Acme"): Promise<Tenant> {
   const email = `${randomUUID()}@example.test`;
-  const r = await signup({ name: "Owner", email, password: "correct horse battery staple", workspaceName: `${name} ${randomUUID().slice(0, 6)}`, timezone: "UTC" }, { ip: randomUUID() });
+  const r = await signup(
+    {
+      name: "Owner",
+      email,
+      password: "correct horse battery staple",
+      workspaceName: `${name} ${randomUUID().slice(0, 6)}`,
+      timezone: "UTC",
+    },
+    { ip: randomUUID() },
+  );
   return { userId: r.user.id, workspaceId: r.workspace.id, email };
 }
 
-export function as<T>(t: Tenant, fn: (ctx: Ctx) => Promise<T>, opts: { role?: Role; actorType?: Ctx["actorType"]; userId?: string } = {}): Promise<T> {
+export function as<T>(
+  t: Tenant,
+  fn: (ctx: Ctx) => Promise<T>,
+  opts: { role?: Role; actorType?: Ctx["actorType"]; userId?: string } = {},
+): Promise<T> {
   return withTenant(t.workspaceId, (tx) =>
     fn({
       workspaceId: t.workspaceId,

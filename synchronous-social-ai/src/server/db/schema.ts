@@ -90,7 +90,10 @@ export const memberships = pgTable(
     role: text("role").notNull(),
     createdAt: createdAt(),
   },
-  (t) => [uniqueIndex("membership_ws_user_uq").on(t.workspaceId, t.userId), index("membership_user_idx").on(t.userId)],
+  (t) => [
+    uniqueIndex("membership_ws_user_uq").on(t.workspaceId, t.userId),
+    index("membership_user_idx").on(t.userId),
+  ],
 );
 
 export const invitations = pgTable(
@@ -193,7 +196,10 @@ export const companyFacts = pgTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [index("facts_ws_idx").on(t.workspaceId, t.category), index("facts_key_idx").on(t.workspaceId, t.key)],
+  (t) => [
+    index("facts_ws_idx").on(t.workspaceId, t.category),
+    index("facts_key_idx").on(t.workspaceId, t.key),
+  ],
 );
 
 export const brandRules = pgTable(
@@ -390,7 +396,10 @@ export const agentRuns = pgTable(
     createdAt: createdAt(),
     finishedAt: ts("finished_at"),
   },
-  (t) => [index("runs_ws_idx").on(t.workspaceId, t.createdAt), index("runs_role_idx").on(t.workspaceId, t.agentRole)],
+  (t) => [
+    index("runs_ws_idx").on(t.workspaceId, t.createdAt),
+    index("runs_role_idx").on(t.workspaceId, t.agentRole),
+  ],
 );
 
 export const agentMessages = pgTable(
@@ -498,7 +507,9 @@ export const contentItems = pgTable(
     format: text("format").notNull(), // post | carousel | story | reel
     status: text("status").notNull().default("draft"),
     currentVersion: integer("current_version").notNull().default(1),
-    connectedAccountId: uuid("connected_account_id").references(() => connectedAccounts.id, { onDelete: "set null" }),
+    connectedAccountId: uuid("connected_account_id").references(() => connectedAccounts.id, {
+      onDelete: "set null",
+    }),
     productIds: jsonb("product_ids").$type<string[]>().notNull().default([]),
     scheduledAt: ts("scheduled_at"),
     timezone: text("timezone"),
@@ -542,7 +553,10 @@ export const contentVersions = pgTable(
     agentRunId: uuid("agent_run_id"),
     createdAt: createdAt(),
   },
-  (t) => [uniqueIndex("content_version_uq").on(t.contentItemId, t.version), index("cv_ws_idx").on(t.workspaceId)],
+  (t) => [
+    uniqueIndex("content_version_uq").on(t.contentItemId, t.version),
+    index("cv_ws_idx").on(t.workspaceId),
+  ],
 );
 
 export const mediaAssets = pgTable(
@@ -733,10 +747,7 @@ export const jobs = pgTable(
     updatedAt: updatedAt(),
     finishedAt: ts("finished_at"),
   },
-  (t) => [
-    index("jobs_claim_idx").on(t.status, t.runAt),
-    index("jobs_ws_idx").on(t.workspaceId, t.status),
-  ],
+  (t) => [index("jobs_claim_idx").on(t.status, t.runAt), index("jobs_ws_idx").on(t.workspaceId, t.status)],
 );
 
 /**
@@ -770,7 +781,10 @@ export const externalActions = pgTable(
     updatedAt: updatedAt(),
     completedAt: ts("completed_at"),
   },
-  (t) => [index("ext_ws_idx").on(t.workspaceId, t.createdAt), index("ext_subject_idx").on(t.subjectType, t.subjectId)],
+  (t) => [
+    index("ext_ws_idx").on(t.workspaceId, t.createdAt),
+    index("ext_subject_idx").on(t.subjectType, t.subjectId),
+  ],
 );
 
 // ───────────────────────────── Inbox ─────────────────────────────
@@ -870,7 +884,9 @@ export const replyDrafts = pgTable(
     blockedReasons: jsonb("blocked_reasons").$type<string[]>().notNull().default([]),
     approvalRequestId: uuid("approval_request_id").references(() => approvalRequests.id),
     externalActionId: uuid("external_action_id").references(() => externalActions.id),
-    automationRuleId: uuid("automation_rule_id").references(() => automationRules.id, { onDelete: "set null" }),
+    automationRuleId: uuid("automation_rule_id").references(() => automationRules.id, {
+      onDelete: "set null",
+    }),
     agentRunId: uuid("agent_run_id"),
     version: integer("version").notNull().default(1),
     createdAt: createdAt(),
@@ -1161,4 +1177,3 @@ export const RLS_TABLES = [
   "usage_events",
   "notifications",
 ] as const;
-

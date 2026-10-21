@@ -15,7 +15,12 @@ export async function currentSession(): Promise<SessionInfo | null> {
 }
 
 /** Server-component data loader: requires a session + workspace, runs `fn` in a tenant-scoped transaction. */
-export async function loadPage<T>(fn: (ctx: Ctx, session: SessionInfo) => Promise<T>, opts: { permission?: Permission } = {}): Promise<{ data: T; session: SessionInfo; allowed: true } | { data: null; session: SessionInfo; allowed: false }> {
+export async function loadPage<T>(
+  fn: (ctx: Ctx, session: SessionInfo) => Promise<T>,
+  opts: { permission?: Permission } = {},
+): Promise<
+  { data: T; session: SessionInfo; allowed: true } | { data: null; session: SessionInfo; allowed: false }
+> {
   const session = await currentSession();
   if (!session) redirect("/login");
   if (!session.workspace || !session.role) redirect("/onboarding");

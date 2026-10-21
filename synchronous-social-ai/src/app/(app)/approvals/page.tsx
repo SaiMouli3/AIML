@@ -11,7 +11,11 @@ import { ApprovalsClient } from "./client";
 export const metadata = { title: "Approvals" };
 export const dynamic = "force-dynamic";
 
-export default async function ApprovalsPage({ searchParams }: { searchParams: Promise<{ id?: string; status?: string }> }) {
+export default async function ApprovalsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ id?: string; status?: string }>;
+}) {
   const sp = await searchParams;
   const status = sp.status ?? "pending";
   const { data, session, allowed } = await loadPage(
@@ -20,11 +24,26 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
       const selectedId = sp.id ?? list[0]?.id;
       const detail = selectedId ? await getApproval(ctx, selectedId).catch(() => null) : null;
       const ids = (detail?.approval.summary.preview?.mediaAssetIds ?? []) as string[];
-      const assets = ids.length ? await ctx.tx.select().from(s.mediaAssets).where(and(inArray(s.mediaAssets.id, ids), eq(s.mediaAssets.workspaceId, ctx.workspaceId))) : [];
-      const media = await Promise.all(ids.map(async (id) => {
-        const a = assets.find((x) => x.id === id);
-        return a ? { id: a.id, kind: a.kind, origin: a.origin, url: await storage().signedUrl(a.storageKey, 900), sha256: a.sha256 } : null;
-      }));
+      const assets = ids.length
+        ? await ctx.tx
+            .select()
+            .from(s.mediaAssets)
+            .where(and(inArray(s.mediaAssets.id, ids), eq(s.mediaAssets.workspaceId, ctx.workspaceId)))
+        : [];
+      const media = await Promise.all(
+        ids.map(async (id) => {
+          const a = assets.find((x) => x.id === id);
+          return a
+            ? {
+                id: a.id,
+                kind: a.kind,
+                origin: a.origin,
+                url: await storage().signedUrl(a.storageKey, 900),
+                sha256: a.sha256,
+              }
+            : null;
+        }),
+      );
       return { list, detail, media: media.filter(Boolean) };
     },
     { permission: "approvals.read" },
@@ -32,7 +51,10 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
   if (!allowed) return <Forbidden what="the Approval Center" />;
   return (
     <>
-      <PageHeader title="Approval Center" description="Approve exactly what will happen. Each decision is bound to a fingerprint of the exact payload; any material edit invalidates it." />
+      <PageHeader
+        title="Approval Center"
+        description="Approve exactly what will happen. Each decision is bound to a fingerprint of the exact payload; any material edit invalidates it."
+      />
       <ApprovalsClient
         data={serialize(data!) as never}
         status={status}

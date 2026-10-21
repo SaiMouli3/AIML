@@ -1,0 +1,31 @@
+# Security
+
+## Threat model (summary)
+| Threat | Control |
+| --- | --- |
+| Cross-tenant data access | RLS forced on every tenant table + explicit `workspace_id` filters + ownership checks on every referenced id; tenant-prefixed storage keys; tests in `tests/integration/foundation.test.ts`. |
+| Approval bypass / stale approval | Approvals store SHA-256 of the canonical payload built from DB state; the approver must echo the hash they saw; the executor rebuilds and compares before every external call; edits to caption, media, account, schedule, timezone, promotion terms, budget, audience, destination or reply text invalidate approvals. Requests are single-use (`executed`) and expire. |
+| Agent / prompt injection triggering actions | Agents have no Tier 3/4 tools; tool allowlists are enforced and audited; untrusted text is delimited as data; injection heuristics flag content; every external action passes `evaluateAction()` which never consults a model. |
+| Agent granting itself permissions | Enabling automation rules, deciding approvals, changing roles, kill switch and agent settings all call `requireUser()` (human actor) plus RBAC. |
+| Unauthorized ad spend | Tier 4 approvals, optional two-person rule, hard monthly cap checked before request and immediately before mutation, objects created PAUSED, `META_ADS_TEST_MODE` refuses activation, kill switch. |
+| Duplicate execution | Unique idempotency keys for jobs and external actions; one private reply per comment keyed by comment id; SKIP LOCKED claims; uncertain outcomes are reconciled or escalated, never retried blindly. |
+| Replayed / forged webhooks | Meta `X-Hub-Signature-256` HMAC over the raw body with timing-safe compare; dedupe on `(provider, event_key)`; Higgsfield webhooks require a secret URL token and matching `request_id`; status endpoint remains source of truth. |
+| Spam / platform abuse | No bulk DM feature; private replies only within 7 days, one per comment; DMs only within 24h of the person's message; per-account and per-rule rate limits; per-person cooldown; opt-out/suppression; complaints never automated. |
+| Unsafe links | https only, allowlisted domains, no IPs/credentials/ports/shorteners/punycode, checked in brand checks, reply grounding and at send time. |
+| CSRF | `SameSite=Lax` cookies + mandatory `x-ssa-csrf` header + Origin check on all mutating API calls. |
+| XSS / clickjacking | React escaping, no `dangerouslySetInnerHTML` with user data, CSP (`default-src 'self'`, `frame-ancestors 'none'`, `object-src 'none'`), `X-Frame-Options: DENY`, `nosniff`; served files use `Content-Security-Policy: sandbox`. |
+| Malicious uploads | Size limits, magic-byte sniffing (declared type must match), text decoding checks, malware-scan hook (EICAR quarantine path tested), knowledge files never served publicly. |
+| Secret leakage | Provider tokens AES-256-GCM encrypted at rest (`ENCRYPTION_KEY`), destroyed on disconnect; never sent to the browser; structured logs and audit metadata pass through `redact()` (tokens, keys, emails, phones, signed-URL params). |
+| OAuth attacks | Single-use, hashed, 10-minute `state` bound to the initiating user and workspace; redirect paths allowlisted to same-origin relative paths; code exchange server-side. |
+| Brute force | Login throttled per IP (30/15 min) and per account (10/15 min); signup and API routes rate-limited (Postgres-backed, shared across instances). |
+
+## Data handling
+- Append-only `audit_events`, `approval_decisions` and `content_versions` (database triggers). Deletion only during workspace offboarding (`app.audit_purge`).
+- Export: Settings → *Export workspace data* (JSON, no secrets). Deletion: owner types the slug; tenant rows cascade and stored objects are removed.
+- Tenant knowledge is never used for other tenants or for training; LLM prompts contain only the current workspace's data.
+
+## Known gaps / before production
+- MFA/SSO not implemented (session layer is the seam). Email delivery for invites/notifications is not wired (links are generated for manual sharing).
+- Malware scanning is an interface with a no-op default (`scanStatus = not_scanned`); wire ClamAV or a vendor.
+- CSP allows `'unsafe-inline'` scripts (Next.js bootstrap). Move to nonce-based CSP if required.
+- Penetration test, load test and a privacy/legal review per market are still required.

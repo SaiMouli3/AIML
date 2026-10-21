@@ -38,7 +38,14 @@ export interface CapabilityResult {
 }
 
 export interface CreateContainerInput {
-  kind: "image" | "reel" | "story_image" | "story_video" | "carousel_item_image" | "carousel_item_video" | "carousel";
+  kind:
+    | "image"
+    | "reel"
+    | "story_image"
+    | "story_video"
+    | "carousel_item_image"
+    | "carousel_item_video"
+    | "carousel";
   mediaUrl?: string;
   caption?: string;
   altText?: string;
@@ -52,8 +59,12 @@ export interface InstagramAdapter {
   createContainer(input: CreateContainerInput): Promise<{ id: string }>;
   getContainerStatus(containerId: string): Promise<ContainerStatus>;
   publishContainer(containerId: string): Promise<{ id: string }>;
-  getMedia(mediaId: string): Promise<{ id: string; permalink?: string; timestamp?: string; caption?: string }>;
-  listRecentMedia(limit?: number): Promise<Array<{ id: string; caption?: string; timestamp?: string; permalink?: string }>>;
+  getMedia(
+    mediaId: string,
+  ): Promise<{ id: string; permalink?: string; timestamp?: string; caption?: string }>;
+  listRecentMedia(
+    limit?: number,
+  ): Promise<Array<{ id: string; caption?: string; timestamp?: string; permalink?: string }>>;
   getPublishingLimit(): Promise<{ used: number; total: number }>;
   replyToComment(commentId: string, message: string): Promise<{ id: string }>;
   sendPrivateReply(commentId: string, text: string): Promise<{ messageId: string; recipientId?: string }>;
@@ -63,23 +74,65 @@ export interface InstagramAdapter {
 
 export function capabilitiesFromScopes(scopes: string[], accountType?: string): CapabilityResult[] {
   const has = (s: string) => scopes.includes(s);
-  const professional = !accountType || ["BUSINESS", "MEDIA_CREATOR", "CREATOR"].includes(accountType.toUpperCase());
+  const professional =
+    !accountType || ["BUSINESS", "MEDIA_CREATOR", "CREATOR"].includes(accountType.toUpperCase());
   const notPro = "Instagram professional (Business or Creator) account required";
   const r = (capability: string, ok: boolean, missing: string): CapabilityResult =>
     ok ? { capability, status: "available" } : { capability, status: "unavailable", reason: missing };
   return [
     r("account_profile", has("instagram_business_basic"), "Missing instagram_business_basic"),
-    r("publish_image", professional && has("instagram_business_content_publish"), professional ? "Missing instagram_business_content_publish" : notPro),
-    r("publish_carousel", professional && has("instagram_business_content_publish"), professional ? "Missing instagram_business_content_publish" : notPro),
-    r("publish_reel", professional && has("instagram_business_content_publish"), professional ? "Missing instagram_business_content_publish" : notPro),
-    r("publish_story", professional && has("instagram_business_content_publish"), professional ? "Missing instagram_business_content_publish" : notPro),
-    r("comments_read", has("instagram_business_manage_comments"), "Missing instagram_business_manage_comments"),
-    r("comments_reply", has("instagram_business_manage_comments"), "Missing instagram_business_manage_comments"),
-    r("private_reply", has("instagram_business_manage_comments") && has("instagram_business_basic"), "Private replies need instagram_business_manage_comments"),
+    r(
+      "publish_image",
+      professional && has("instagram_business_content_publish"),
+      professional ? "Missing instagram_business_content_publish" : notPro,
+    ),
+    r(
+      "publish_carousel",
+      professional && has("instagram_business_content_publish"),
+      professional ? "Missing instagram_business_content_publish" : notPro,
+    ),
+    r(
+      "publish_reel",
+      professional && has("instagram_business_content_publish"),
+      professional ? "Missing instagram_business_content_publish" : notPro,
+    ),
+    r(
+      "publish_story",
+      professional && has("instagram_business_content_publish"),
+      professional ? "Missing instagram_business_content_publish" : notPro,
+    ),
+    r(
+      "comments_read",
+      has("instagram_business_manage_comments"),
+      "Missing instagram_business_manage_comments",
+    ),
+    r(
+      "comments_reply",
+      has("instagram_business_manage_comments"),
+      "Missing instagram_business_manage_comments",
+    ),
+    r(
+      "private_reply",
+      has("instagram_business_manage_comments") && has("instagram_business_basic"),
+      "Private replies need instagram_business_manage_comments",
+    ),
     has("instagram_business_manage_messages")
-      ? { capability: "messaging", status: "unknown", reason: "Scope granted. Sending also requires Advanced Access (app review) and an open 24h conversation window; verified on first send." }
-      : { capability: "messaging", status: "unavailable", reason: "Missing instagram_business_manage_messages" },
-    r("insights", has("instagram_business_basic") && professional, "Insights need a professional account and instagram_business_basic"),
+      ? {
+          capability: "messaging",
+          status: "unknown",
+          reason:
+            "Scope granted. Sending also requires Advanced Access (app review) and an open 24h conversation window; verified on first send.",
+        }
+      : {
+          capability: "messaging",
+          status: "unavailable",
+          reason: "Missing instagram_business_manage_messages",
+        },
+    r(
+      "insights",
+      has("instagram_business_basic") && professional,
+      "Insights need a professional account and instagram_business_basic",
+    ),
   ];
 }
 
@@ -93,11 +146,32 @@ export class LiveInstagramAdapter implements InstagramAdapter {
   private base() {
     return `https://graph.instagram.com/${env().META_GRAPH_VERSION}`;
   }
-  private call<T>(method: "GET" | "POST", path: string, params?: Record<string, string | number | boolean | undefined>, mutation = false) {
-    return graphCall<T>({ method, url: `${this.base()}${path}`, token: this.token, params, mutation, fetchImpl: this.fetchImpl }, "instagram");
+  private call<T>(
+    method: "GET" | "POST",
+    path: string,
+    params?: Record<string, string | number | boolean | undefined>,
+    mutation = false,
+  ) {
+    return graphCall<T>(
+      {
+        method,
+        url: `${this.base()}${path}`,
+        token: this.token,
+        params,
+        mutation,
+        fetchImpl: this.fetchImpl,
+      },
+      "instagram",
+    );
   }
   async getAccount() {
-    const r = await this.call<{ user_id?: string; id: string; username: string; name?: string; account_type?: string }>("GET", "/me", {
+    const r = await this.call<{
+      user_id?: string;
+      id: string;
+      username: string;
+      name?: string;
+      account_type?: string;
+    }>("GET", "/me", {
       fields: "user_id,username,name,account_type",
     });
     return { id: r.user_id ?? r.id, username: r.username, name: r.name, accountType: r.account_type };
@@ -109,19 +183,29 @@ export class LiveInstagramAdapter implements InstagramAdapter {
       await this.getPublishingLimit();
     } catch (e) {
       const err = e as ProviderError;
-      for (const c of caps) if (c.capability.startsWith("publish_")) Object.assign(c, { status: "unavailable", reason: `Probe failed: ${err.publicMessage ?? err.message}` });
+      for (const c of caps)
+        if (c.capability.startsWith("publish_"))
+          Object.assign(c, {
+            status: "unavailable",
+            reason: `Probe failed: ${err.publicMessage ?? err.message}`,
+          });
     }
     return caps;
   }
   async createContainer(i: CreateContainerInput) {
     const p: Record<string, string | boolean | undefined> = {};
-    if (i.kind === "image") Object.assign(p, { image_url: i.mediaUrl, caption: i.caption, alt_text: i.altText });
-    if (i.kind === "reel") Object.assign(p, { media_type: "REELS", video_url: i.mediaUrl, caption: i.caption });
+    if (i.kind === "image")
+      Object.assign(p, { image_url: i.mediaUrl, caption: i.caption, alt_text: i.altText });
+    if (i.kind === "reel")
+      Object.assign(p, { media_type: "REELS", video_url: i.mediaUrl, caption: i.caption });
     if (i.kind === "story_image") Object.assign(p, { media_type: "STORIES", image_url: i.mediaUrl });
     if (i.kind === "story_video") Object.assign(p, { media_type: "STORIES", video_url: i.mediaUrl });
-    if (i.kind === "carousel_item_image") Object.assign(p, { is_carousel_item: true, image_url: i.mediaUrl, alt_text: i.altText });
-    if (i.kind === "carousel_item_video") Object.assign(p, { is_carousel_item: true, media_type: "VIDEO", video_url: i.mediaUrl });
-    if (i.kind === "carousel") Object.assign(p, { media_type: "CAROUSEL", children: i.children?.join(","), caption: i.caption });
+    if (i.kind === "carousel_item_image")
+      Object.assign(p, { is_carousel_item: true, image_url: i.mediaUrl, alt_text: i.altText });
+    if (i.kind === "carousel_item_video")
+      Object.assign(p, { is_carousel_item: true, media_type: "VIDEO", video_url: i.mediaUrl });
+    if (i.kind === "carousel")
+      Object.assign(p, { media_type: "CAROUSEL", children: i.children?.join(","), caption: i.caption });
     // Container creation has no external visibility; it is safe to retry.
     return this.call<{ id: string }>("POST", `/${this.igUserId}/media`, p, false);
   }
@@ -133,19 +217,29 @@ export class LiveInstagramAdapter implements InstagramAdapter {
     return this.call<{ id: string }>("POST", `/${this.igUserId}/media_publish`, { creation_id: id }, true);
   }
   getMedia(mediaId: string) {
-    return this.call<{ id: string; permalink?: string; timestamp?: string; caption?: string }>("GET", `/${mediaId}`, { fields: "id,permalink,timestamp,caption" });
+    return this.call<{ id: string; permalink?: string; timestamp?: string; caption?: string }>(
+      "GET",
+      `/${mediaId}`,
+      { fields: "id,permalink,timestamp,caption" },
+    );
   }
   async listRecentMedia(limit = 25) {
-    const r = await this.call<{ data: Array<{ id: string; caption?: string; timestamp?: string; permalink?: string }> }>("GET", `/${this.igUserId}/media`, {
+    const r = await this.call<{
+      data: Array<{ id: string; caption?: string; timestamp?: string; permalink?: string }>;
+    }>("GET", `/${this.igUserId}/media`, {
       fields: "id,caption,timestamp,permalink",
       limit,
     });
     return r.data ?? [];
   }
   async getPublishingLimit() {
-    const r = await this.call<{ data: Array<{ quota_usage: number; config?: { quota_total: number } }> }>("GET", `/${this.igUserId}/content_publishing_limit`, {
-      fields: "quota_usage,config",
-    });
+    const r = await this.call<{ data: Array<{ quota_usage: number; config?: { quota_total: number } }> }>(
+      "GET",
+      `/${this.igUserId}/content_publishing_limit`,
+      {
+        fields: "quota_usage,config",
+      },
+    );
     const d = r.data?.[0];
     return { used: d?.quota_usage ?? 0, total: d?.config?.quota_total ?? 100 };
   }
@@ -153,18 +247,26 @@ export class LiveInstagramAdapter implements InstagramAdapter {
     return this.call<{ id: string }>("POST", `/${commentId}/replies`, { message }, true);
   }
   async sendPrivateReply(commentId: string, text: string) {
-    const r = await this.postJson<{ recipient_id?: string; message_id: string }>(`/${this.igUserId}/messages`, {
-      recipient: { comment_id: commentId },
-      message: { text },
-    });
+    const r = await this.postJson<{ recipient_id?: string; message_id: string }>(
+      `/${this.igUserId}/messages`,
+      {
+        recipient: { comment_id: commentId },
+        message: { text },
+      },
+    );
     return { messageId: r.message_id, recipientId: r.recipient_id };
   }
   async sendMessage(recipientIgsid: string, text: string) {
-    const r = await this.postJson<{ message_id: string }>(`/${this.igUserId}/messages`, { recipient: { id: recipientIgsid }, message: { text } });
+    const r = await this.postJson<{ message_id: string }>(`/${this.igUserId}/messages`, {
+      recipient: { id: recipientIgsid },
+      message: { text },
+    });
     return { messageId: r.message_id };
   }
   async getMediaInsights(mediaId: string, metrics: string[]) {
-    const r = await this.call<{ data: Array<{ name: string; values?: Array<{ value: number }>; total_value?: { value: number } }> }>("GET", `/${mediaId}/insights`, {
+    const r = await this.call<{
+      data: Array<{ name: string; values?: Array<{ value: number }>; total_value?: { value: number } }>;
+    }>("GET", `/${mediaId}/insights`, {
       metric: metrics.join(","),
     });
     const out: Record<string, number> = {};
@@ -187,7 +289,8 @@ export class LiveInstagramAdapter implements InstagramAdapter {
     const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     if (!res.ok || json.error) {
       const err = mapGraphError(res.status, json as never, "instagram");
-      if (err.kind === "transient") throw new ProviderError("unknown_outcome", "instagram", err.message, err.meta);
+      if (err.kind === "transient")
+        throw new ProviderError("unknown_outcome", "instagram", err.message, err.meta);
       throw err;
     }
     return json as T;
@@ -201,19 +304,32 @@ export class LiveInstagramAdapter implements InstagramAdapter {
  */
 export class MockInstagramAdapter implements InstagramAdapter {
   readonly mode = "mock" as const;
-  constructor(private readonly igUserId: string, private readonly username = "mock_brand") {}
+  constructor(
+    private readonly igUserId: string,
+    private readonly username = "mock_brand",
+  ) {}
   private inject(text: string | undefined) {
     if (!text) return;
-    if (text.includes("[mock:fail]")) throw new ProviderError("transient", "instagram", "Mock transient failure");
-    if (text.includes("[mock:ambiguous]")) throw new ProviderError("unknown_outcome", "instagram", "Mock ambiguous outcome");
-    if (text.includes("[mock:denied]")) throw new ProviderError("permission", "instagram", "Mock permission denied");
+    if (text.includes("[mock:fail]"))
+      throw new ProviderError("transient", "instagram", "Mock transient failure");
+    if (text.includes("[mock:ambiguous]"))
+      throw new ProviderError("unknown_outcome", "instagram", "Mock ambiguous outcome");
+    if (text.includes("[mock:denied]"))
+      throw new ProviderError("permission", "instagram", "Mock permission denied");
   }
   async getAccount() {
-    return { id: this.igUserId, username: this.username, name: "Mock Brand (development)", accountType: "BUSINESS" };
+    return {
+      id: this.igUserId,
+      username: this.username,
+      name: "Mock Brand (development)",
+      accountType: "BUSINESS",
+    };
   }
   async discoverCapabilities(scopes: string[], accountType?: string) {
     return capabilitiesFromScopes(scopes, accountType).map((c) =>
-      c.capability === "messaging" && c.status === "unknown" ? { ...c, status: "available" as const, reason: "Mock account: messaging simulated" } : c,
+      c.capability === "messaging" && c.status === "unknown"
+        ? { ...c, status: "available" as const, reason: "Mock account: messaging simulated" }
+        : c,
     );
   }
   async createContainer(i: CreateContainerInput) {
@@ -227,7 +343,11 @@ export class MockInstagramAdapter implements InstagramAdapter {
     return { id: `mock_media_${randomUUID()}` };
   }
   async getMedia(mediaId: string) {
-    return { id: mediaId, permalink: `https://mock.invalid/instagram/${mediaId}`, timestamp: new Date().toISOString() };
+    return {
+      id: mediaId,
+      permalink: `https://mock.invalid/instagram/${mediaId}`,
+      timestamp: new Date().toISOString(),
+    };
   }
   async listRecentMedia() {
     return [];
@@ -265,7 +385,11 @@ export function instagramAuthorizeUrl(state: string, redirectUri: string) {
   return u.toString();
 }
 
-export async function exchangeInstagramCode(code: string, redirectUri: string, fetchImpl: typeof fetch = fetch) {
+export async function exchangeInstagramCode(
+  code: string,
+  redirectUri: string,
+  fetchImpl: typeof fetch = fetch,
+) {
   const e = env();
   const form = new URLSearchParams({
     client_id: e.META_APP_ID ?? "",
@@ -274,9 +398,19 @@ export async function exchangeInstagramCode(code: string, redirectUri: string, f
     redirect_uri: redirectUri,
     code,
   });
-  const res = await fetchImpl("https://api.instagram.com/oauth/access_token", { method: "POST", body: form, signal: AbortSignal.timeout(20_000) });
-  const json = (await res.json().catch(() => ({}))) as { access_token?: string; user_id?: string | number; permissions?: string[] | string; error_message?: string };
-  if (!res.ok || !json.access_token) throw new ProviderError("auth", "instagram", `Code exchange failed: ${json.error_message ?? res.status}`);
+  const res = await fetchImpl("https://api.instagram.com/oauth/access_token", {
+    method: "POST",
+    body: form,
+    signal: AbortSignal.timeout(20_000),
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    access_token?: string;
+    user_id?: string | number;
+    permissions?: string[] | string;
+    error_message?: string;
+  };
+  if (!res.ok || !json.access_token)
+    throw new ProviderError("auth", "instagram", `Code exchange failed: ${json.error_message ?? res.status}`);
   const shortToken = json.access_token;
   // Exchange for a long-lived (60 day) token.
   const ll = new URL("https://graph.instagram.com/access_token");
@@ -285,7 +419,11 @@ export async function exchangeInstagramCode(code: string, redirectUri: string, f
   ll.searchParams.set("access_token", shortToken);
   const llRes = await fetchImpl(ll, { signal: AbortSignal.timeout(20_000) });
   const llJson = (await llRes.json().catch(() => ({}))) as { access_token?: string; expires_in?: number };
-  const permissions = Array.isArray(json.permissions) ? json.permissions : String(json.permissions ?? "").split(",").filter(Boolean);
+  const permissions = Array.isArray(json.permissions)
+    ? json.permissions
+    : String(json.permissions ?? "")
+        .split(",")
+        .filter(Boolean);
   return {
     accessToken: llJson.access_token ?? shortToken,
     expiresAt: new Date(Date.now() + (llJson.expires_in ?? 3600) * 1000),
@@ -299,7 +437,11 @@ export async function refreshInstagramToken(token: string, fetchImpl: typeof fet
   u.searchParams.set("grant_type", "ig_refresh_token");
   u.searchParams.set("access_token", token);
   const res = await fetchImpl(u, { signal: AbortSignal.timeout(20_000) });
-  const json = (await res.json().catch(() => ({}))) as { access_token?: string; expires_in?: number; error?: { code?: number; message?: string } };
+  const json = (await res.json().catch(() => ({}))) as {
+    access_token?: string;
+    expires_in?: number;
+    error?: { code?: number; message?: string };
+  };
   if (!res.ok || !json.access_token) {
     const { mapGraphError } = await import("./graph");
     throw mapGraphError(res.status, json as never, "instagram");

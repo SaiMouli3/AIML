@@ -53,7 +53,11 @@ export function profileCompleteness(p: CompanyProfile): { score: number; missing
   const missing: string[] = [];
   for (const [k, w] of COMPLETENESS_FIELDS) {
     const v = p[k];
-    const filled = Array.isArray(v) ? v.length > 0 : typeof v === "object" && v ? Object.values(v).some((x) => (Array.isArray(x) ? x.length : x)) : Boolean(v);
+    const filled = Array.isArray(v)
+      ? v.length > 0
+      : typeof v === "object" && v
+        ? Object.values(v).some((x) => (Array.isArray(x) ? x.length : x))
+        : Boolean(v);
     if (filled) score += w;
     else missing.push(k);
   }
@@ -62,10 +66,19 @@ export function profileCompleteness(p: CompanyProfile): { score: number; missing
 
 export async function getProfile(ctx: Ctx) {
   requirePermission(ctx, "brain.read");
-  const rows = await ctx.tx.select().from(s.companyProfiles).where(eq(s.companyProfiles.workspaceId, ctx.workspaceId)).limit(1);
+  const rows = await ctx.tx
+    .select()
+    .from(s.companyProfiles)
+    .where(eq(s.companyProfiles.workspaceId, ctx.workspaceId))
+    .limit(1);
   const row = rows[0];
   const data = companyProfileSchema.parse(row?.data ?? {});
-  return { data, version: row?.version ?? 0, updatedAt: row?.updatedAt ?? null, ...profileCompleteness(data) };
+  return {
+    data,
+    version: row?.version ?? 0,
+    updatedAt: row?.updatedAt ?? null,
+    ...profileCompleteness(data),
+  };
 }
 
 export async function updateProfile(ctx: Ctx, patch: CompanyProfile, expectedVersion?: number) {
@@ -81,15 +94,36 @@ export async function updateProfile(ctx: Ctx, patch: CompanyProfile, expectedVer
     .values({ workspaceId: ctx.workspaceId, data, completeness: score, version: 1, updatedBy: ctx.userId })
     .onConflictDoUpdate({
       target: s.companyProfiles.workspaceId,
-      set: { data, completeness: score, version: sql`${s.companyProfiles.version} + 1`, updatedBy: ctx.userId, updatedAt: new Date() },
+      set: {
+        data,
+        completeness: score,
+        version: sql`${s.companyProfiles.version} + 1`,
+        updatedBy: ctx.userId,
+        updatedAt: new Date(),
+      },
     });
-  await audit(ctx, { action: "brain.profile_updated", targetType: "company_profile", targetId: ctx.workspaceId, metadata: { fields: Object.keys(patch) } });
+  await audit(ctx, {
+    action: "brain.profile_updated",
+    targetType: "company_profile",
+    targetId: ctx.workspaceId,
+    metadata: { fields: Object.keys(patch) },
+  });
   return getProfile(ctx);
 }
 
 // ───────────────────────────── Facts ─────────────────────────────
 
-export const FACT_CATEGORIES = ["product", "pricing", "policy", "audience", "offer", "brand", "faq", "delivery", "other"] as const;
+export const FACT_CATEGORIES = [
+  "product",
+  "pricing",
+  "policy",
+  "audience",
+  "offer",
+  "brand",
+  "faq",
+  "delivery",
+  "other",
+] as const;
 
 export const factInputSchema = z.object({
   category: z.enum(FACT_CATEGORIES),
@@ -108,7 +142,12 @@ const normKey = (k: string) => k.trim().toLowerCase().replace(/\s+/g, " ");
 export async function addFact(
   ctx: Ctx,
   input: z.infer<typeof factInputSchema>,
-  opts: { origin?: "user" | "agent"; confidence?: number; agentRunId?: string; status?: "pending" | "approved" } = {},
+  opts: {
+    origin?: "user" | "agent";
+    confidence?: number;
+    agentRunId?: string;
+    status?: "pending" | "approved";
+  } = {},
 ) {
   requirePermission(ctx, "brain.write");
   const key = normKey(input.key);
@@ -116,9 +155,17 @@ export async function addFact(
   const others = await ctx.tx
     .select()
     .from(s.companyFacts)
-    .where(and(eq(s.companyFacts.workspaceId, ctx.workspaceId), eq(s.companyFacts.key, key), ne(s.companyFacts.status, "rejected")));
+    .where(
+      and(
+        eq(s.companyFacts.workspaceId, ctx.workspaceId),
+        eq(s.companyFacts.key, key),
+        ne(s.companyFacts.status, "rejected"),
+      ),
+    );
   const conflicting = others.filter((f) => f.value.trim().toLowerCase() !== input.value.trim().toLowerCase());
-  const status = conflicting.length ? "conflict" : (opts.status ?? (opts.origin === "agent" ? "pending" : "approved"));
+  const status = conflicting.length
+    ? "conflict"
+    : (opts.status ?? (opts.origin === "agent" ? "pending" : "approved"));
   const [fact] = await ctx.tx
     .insert(s.companyFacts)
     .values({
@@ -139,9 +186,19 @@ export async function addFact(
     await ctx.tx
       .update(s.companyFacts)
       .set({ status: "conflict", updatedAt: new Date() })
-      .where(inArray(s.companyFacts.id, conflicting.map((c) => c.id)));
+      .where(
+        inArray(
+          s.companyFacts.id,
+          conflicting.map((c) => c.id),
+        ),
+      );
   }
-  await audit(ctx, { action: "brain.fact_added", targetType: "company_fact", targetId: fact!.id, metadata: { key, status, origin: opts.origin ?? "user" } });
+  await audit(ctx, {
+    action: "brain.fact_added",
+    targetType: "company_fact",
+    targetId: fact!.id,
+    metadata: { key, status, origin: opts.origin ?? "user" },
+  });
   return fact!;
 }
 
@@ -168,7 +225,11 @@ export async function listFacts(ctx: Ctx, opts: { status?: string; category?: st
 }
 
 /** Resolve a fact (approve, reject, or correct its value). Resolving a conflict rejects the alternatives. */
-export async function reviewFact(ctx: Ctx, id: string, input: { decision: "approve" | "reject"; value?: string }) {
+export async function reviewFact(
+  ctx: Ctx,
+  id: string,
+  input: { decision: "approve" | "reject"; value?: string },
+) {
   requirePermission(ctx, "brain.write");
   const rows = await ctx.tx
     .select()
@@ -178,18 +239,38 @@ export async function reviewFact(ctx: Ctx, id: string, input: { decision: "appro
   const fact = rows[0];
   if (!fact) throw new AppError("NOT_FOUND", "Fact not found");
   if (input.decision === "reject") {
-    await ctx.tx.update(s.companyFacts).set({ status: "rejected", reviewedBy: ctx.userId, updatedAt: new Date() }).where(eq(s.companyFacts.id, id));
+    await ctx.tx
+      .update(s.companyFacts)
+      .set({ status: "rejected", reviewedBy: ctx.userId, updatedAt: new Date() })
+      .where(eq(s.companyFacts.id, id));
   } else {
     await ctx.tx
       .update(s.companyFacts)
-      .set({ status: "approved", value: input.value ?? fact.value, reviewedBy: ctx.userId, updatedAt: new Date() })
+      .set({
+        status: "approved",
+        value: input.value ?? fact.value,
+        reviewedBy: ctx.userId,
+        updatedAt: new Date(),
+      })
       .where(eq(s.companyFacts.id, id));
     await ctx.tx
       .update(s.companyFacts)
       .set({ status: "rejected", reviewedBy: ctx.userId, updatedAt: new Date() })
-      .where(and(eq(s.companyFacts.workspaceId, ctx.workspaceId), eq(s.companyFacts.key, fact.key), ne(s.companyFacts.id, id), eq(s.companyFacts.status, "conflict")));
+      .where(
+        and(
+          eq(s.companyFacts.workspaceId, ctx.workspaceId),
+          eq(s.companyFacts.key, fact.key),
+          ne(s.companyFacts.id, id),
+          eq(s.companyFacts.status, "conflict"),
+        ),
+      );
   }
-  await audit(ctx, { action: `brain.fact_${input.decision}d`, targetType: "company_fact", targetId: id, metadata: { corrected: Boolean(input.value) } });
+  await audit(ctx, {
+    action: `brain.fact_${input.decision}d`,
+    targetType: "company_fact",
+    targetId: id,
+    metadata: { corrected: Boolean(input.value) },
+  });
 }
 
 // ───────────────────────────── Brand rules & domains ─────────────────────────────
@@ -201,8 +282,16 @@ export const brandRuleSchema = z.object({
 
 export async function addBrandRule(ctx: Ctx, input: z.infer<typeof brandRuleSchema>) {
   requirePermission(ctx, "brain.write");
-  const [r] = await ctx.tx.insert(s.brandRules).values({ workspaceId: ctx.workspaceId, ...input, createdBy: ctx.userId }).returning();
-  await audit(ctx, { action: "brain.brand_rule_added", targetType: "brand_rule", targetId: r!.id, metadata: { kind: input.kind } });
+  const [r] = await ctx.tx
+    .insert(s.brandRules)
+    .values({ workspaceId: ctx.workspaceId, ...input, createdBy: ctx.userId })
+    .returning();
+  await audit(ctx, {
+    action: "brain.brand_rule_added",
+    targetType: "brand_rule",
+    targetId: r!.id,
+    metadata: { kind: input.kind },
+  });
   return r!;
 }
 
@@ -226,22 +315,36 @@ export async function listBrandRules(ctx: Ctx) {
 }
 
 export async function listAllowedDomains(ctx: Ctx): Promise<string[]> {
-  const rows = await ctx.tx.select({ d: s.allowedDomains.domain }).from(s.allowedDomains).where(eq(s.allowedDomains.workspaceId, ctx.workspaceId));
+  const rows = await ctx.tx
+    .select({ d: s.allowedDomains.domain })
+    .from(s.allowedDomains)
+    .where(eq(s.allowedDomains.workspaceId, ctx.workspaceId));
   return rows.map((r) => r.d);
 }
 
 export async function addAllowedDomain(ctx: Ctx, domain: string) {
   requirePermission(ctx, "brain.write");
   const d = normalizeDomain(domain);
-  if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(d)) throw new AppError("VALIDATION_FAILED", "Enter a domain such as shop.example.com");
-  await ctx.tx.insert(s.allowedDomains).values({ workspaceId: ctx.workspaceId, domain: d, createdBy: ctx.userId }).onConflictDoNothing();
+  if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(d))
+    throw new AppError("VALIDATION_FAILED", "Enter a domain such as shop.example.com");
+  await ctx.tx
+    .insert(s.allowedDomains)
+    .values({ workspaceId: ctx.workspaceId, domain: d, createdBy: ctx.userId })
+    .onConflictDoNothing();
   await audit(ctx, { action: "brain.domain_allowed", targetType: "allowed_domain", targetId: d });
   return d;
 }
 
 export async function removeAllowedDomain(ctx: Ctx, domain: string) {
   requirePermission(ctx, "brain.write");
-  await ctx.tx.delete(s.allowedDomains).where(and(eq(s.allowedDomains.workspaceId, ctx.workspaceId), eq(s.allowedDomains.domain, normalizeDomain(domain))));
+  await ctx.tx
+    .delete(s.allowedDomains)
+    .where(
+      and(
+        eq(s.allowedDomains.workspaceId, ctx.workspaceId),
+        eq(s.allowedDomains.domain, normalizeDomain(domain)),
+      ),
+    );
   await audit(ctx, { action: "brain.domain_removed", targetType: "allowed_domain", targetId: domain });
 }
 
@@ -253,7 +356,11 @@ export const productSchema = z.object({
   description: z.string().max(4000).optional().nullable(),
   url: z.url().max(1000).optional().nullable(),
   priceMinor: z.number().int().min(0).max(1e10).optional().nullable(),
-  currency: z.string().regex(/^[A-Z]{3}$/).optional().nullable(),
+  currency: z
+    .string()
+    .regex(/^[A-Z]{3}$/)
+    .optional()
+    .nullable(),
   variants: z.array(z.string().max(120)).max(50).default([]),
   stockStatus: z.enum(["in_stock", "low", "out_of_stock", "unknown"]).default("unknown"),
   deliveryPolicy: z.string().max(2000).optional().nullable(),
@@ -271,7 +378,12 @@ export async function upsertProduct(ctx: Ctx, raw: z.input<typeof productSchema>
         .insert(s.allowedDomains)
         .values({ workspaceId: ctx.workspaceId, domain: host, createdBy: ctx.userId })
         .onConflictDoNothing();
-      await audit(ctx, { action: "brain.domain_allowed", targetType: "allowed_domain", targetId: host, metadata: { via: "product_url" } });
+      await audit(ctx, {
+        action: "brain.domain_allowed",
+        targetType: "allowed_domain",
+        targetId: host,
+        metadata: { via: "product_url" },
+      });
     }
   }
   if (id) {
@@ -284,7 +396,10 @@ export async function upsertProduct(ctx: Ctx, raw: z.input<typeof productSchema>
     await audit(ctx, { action: "brain.product_updated", targetType: "product", targetId: id });
     return r[0];
   }
-  const [p] = await ctx.tx.insert(s.products).values({ workspaceId: ctx.workspaceId, ...input }).returning();
+  const [p] = await ctx.tx
+    .insert(s.products)
+    .values({ workspaceId: ctx.workspaceId, ...input })
+    .returning();
   await audit(ctx, { action: "brain.product_added", targetType: "product", targetId: p!.id });
   return p!;
 }
@@ -311,7 +426,10 @@ export async function archiveProduct(ctx: Ctx, id: string) {
 // ───────────────────────────── Knowledge retrieval ─────────────────────────────
 
 export function chunkText(text: string, size = 1200, overlap = 150): string[] {
-  const clean = text.replace(/\r\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  const clean = text
+    .replace(/\r\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
   if (!clean) return [];
   const chunks: string[] = [];
   let i = 0;
@@ -364,7 +482,13 @@ export async function storeChunks(ctx: Ctx, sourceId: string, text: string) {
   const chunks = chunkText(text);
   if (chunks.length) {
     await ctx.tx.insert(s.knowledgeChunks).values(
-      chunks.map((c, i) => ({ workspaceId: ctx.workspaceId, sourceId, ordinal: i, text: c, injectionFlag: detectInjection(c).flagged })),
+      chunks.map((c, i) => ({
+        workspaceId: ctx.workspaceId,
+        sourceId,
+        ordinal: i,
+        text: c,
+        injectionFlag: detectInjection(c).flagged,
+      })),
     );
   }
   return chunks.length;
@@ -383,10 +507,11 @@ export async function listSources(ctx: Ctx) {
 export async function groundingBundle(ctx: Ctx) {
   const [profile, facts, rules, catalog, domains] = await seq([
     () => getProfile(ctx),
-    () => ctx.tx
-      .select()
-      .from(s.companyFacts)
-      .where(and(eq(s.companyFacts.workspaceId, ctx.workspaceId), eq(s.companyFacts.status, "approved"))),
+    () =>
+      ctx.tx
+        .select()
+        .from(s.companyFacts)
+        .where(and(eq(s.companyFacts.workspaceId, ctx.workspaceId), eq(s.companyFacts.status, "approved"))),
     () => listBrandRules(ctx),
     () => listProducts(ctx),
     () => listAllowedDomains(ctx),

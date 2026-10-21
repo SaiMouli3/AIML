@@ -14,8 +14,14 @@ export const POST = route({ permission: "brain.write", rateLimit: 30 }, async ({
     const file = form.get("file");
     if (!(file instanceof File)) throw new AppError("VALIDATION_FAILED", "Attach a file");
     if (file.size > 10 * 1024 * 1024) throw new AppError("VALIDATION_FAILED", "Document exceeds 10 MB limit");
-    return uploadKnowledgeSource(ctx, { name: file.name, type: file.type, data: Buffer.from(await file.arrayBuffer()) });
+    return uploadKnowledgeSource(ctx, {
+      name: file.name,
+      type: file.type,
+      data: Buffer.from(await file.arrayBuffer()),
+    });
   }
-  const body = z.object({ title: z.string().trim().min(1).max(200), text: z.string().min(1).max(200_000) }).parse(await req.json());
+  const body = z
+    .object({ title: z.string().trim().min(1).max(200), text: z.string().min(1).max(200_000) })
+    .parse(await req.json());
   return addTextSource(ctx, body.title, body.text);
 });

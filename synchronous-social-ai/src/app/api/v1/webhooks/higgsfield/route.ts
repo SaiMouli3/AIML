@@ -17,7 +17,8 @@ import { handleHiggsfieldWebhook } from "@/server/services/media";
 export async function POST(req: NextRequest) {
   const token = env().HIGGSFIELD_WEBHOOK_TOKEN;
   const sp = req.nextUrl.searchParams;
-  if (!token || !safeEqual(sp.get("token") ?? "", token)) return new NextResponse("Forbidden", { status: 403 });
+  if (!token || !safeEqual(sp.get("token") ?? "", token))
+    return new NextResponse("Forbidden", { status: 403 });
   const jobId = sp.get("job") ?? "";
   let body: unknown;
   try {
@@ -25,12 +26,34 @@ export async function POST(req: NextRequest) {
   } catch {
     return new NextResponse("Bad request", { status: 400 });
   }
-  const job = await withSystem(async (tx) => (await tx.select({ id: s.mediaGenerationJobs.id, workspaceId: s.mediaGenerationJobs.workspaceId }).from(s.mediaGenerationJobs).where(eq(s.mediaGenerationJobs.id, jobId)).limit(1))[0]);
+  const job = await withSystem(
+    async (tx) =>
+      (
+        await tx
+          .select({ id: s.mediaGenerationJobs.id, workspaceId: s.mediaGenerationJobs.workspaceId })
+          .from(s.mediaGenerationJobs)
+          .where(eq(s.mediaGenerationJobs.id, jobId))
+          .limit(1)
+      )[0],
+  );
   if (!job) return NextResponse.json({ ignored: true });
   const correlationId = newCorrelationId();
   try {
     const r = await withTenant(job.workspaceId, (tx) =>
-      handleHiggsfieldWebhook({ workspaceId: job.workspaceId, userId: null, role: "admin", actorType: "webhook", actorId: "higgsfield", correlationId, tx, log: createLogger({ correlationId }) }, jobId, body),
+      handleHiggsfieldWebhook(
+        {
+          workspaceId: job.workspaceId,
+          userId: null,
+          role: "admin",
+          actorType: "webhook",
+          actorId: "higgsfield",
+          correlationId,
+          tx,
+          log: createLogger({ correlationId }),
+        },
+        jobId,
+        body,
+      ),
     );
     return NextResponse.json(r);
   } catch (e) {

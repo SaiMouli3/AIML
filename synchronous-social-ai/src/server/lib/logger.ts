@@ -4,7 +4,8 @@ type Level = "debug" | "info" | "warn" | "error";
 const ORDER: Record<Level, number> = { debug: 10, info: 20, warn: 30, error: 40 };
 
 function threshold(): number {
-  const l = (process.env.LOG_LEVEL as Level | undefined) ?? (process.env.APP_ENV === "test" ? "warn" : "info");
+  const l =
+    (process.env.LOG_LEVEL as Level | undefined) ?? (process.env.APP_ENV === "test" ? "warn" : "info");
   return ORDER[l] ?? 20;
 }
 

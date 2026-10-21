@@ -1,41 +1,139 @@
 "use client";
 
-import { AlertTriangle, BookOpen, Check, FileText, Globe, Link2, Package, Plus, Search, Sparkles, Trash2, Upload, X } from "lucide-react";
+import {
+  AlertTriangle,
+  BookOpen,
+  Check,
+  FileText,
+  Globe,
+  Link2,
+  Package,
+  Plus,
+  Search,
+  Sparkles,
+  Trash2,
+  Upload,
+  X,
+} from "lucide-react";
 import { useRef, useState } from "react";
 import { StatusBadge } from "@/components/status";
 import { Button } from "@/components/ui/button";
 import { Dialog, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/overlay";
-import { Badge, Card, CardBody, CardHeader, EmptyState, Field, Input, Notice, Select, Table, Td, Textarea, Th } from "@/components/ui/primitives";
+import {
+  Badge,
+  Card,
+  CardBody,
+  CardHeader,
+  EmptyState,
+  Field,
+  Input,
+  Notice,
+  Select,
+  Table,
+  Td,
+  Textarea,
+  Th,
+} from "@/components/ui/primitives";
 import { useAction } from "@/components/use-action";
 import { api } from "@/lib/api-client";
 import { fmtMoney, fmtRelative, titleCase } from "@/lib/format";
 
 type Profile = {
   data: {
-    name?: string; website?: string; description?: string; industry?: string; markets?: string[]; customerSegments?: string[]; objectives?: string[]; differentiators?: string[];
-    brandVoice?: { tone?: string; do?: string[]; dont?: string[] }; visualIdentity?: string; pricingNotes?: string; policies?: string; deliveryRegions?: string[]; escalationContact?: string;
+    name?: string;
+    website?: string;
+    description?: string;
+    industry?: string;
+    markets?: string[];
+    customerSegments?: string[];
+    objectives?: string[];
+    differentiators?: string[];
+    brandVoice?: { tone?: string; do?: string[]; dont?: string[] };
+    visualIdentity?: string;
+    pricingNotes?: string;
+    policies?: string;
+    deliveryRegions?: string[];
+    escalationContact?: string;
   };
-  version: number; score: number; missing: string[];
+  version: number;
+  score: number;
+  missing: string[];
 };
 interface Data {
   profile: Profile;
-  facts: Array<{ fact: { id: string; category: string; key: string; value: string; status: string; origin: string; confidence: string; sourceExcerpt: string | null; updatedAt: string }; sourceTitle: string | null }>;
-  products: Array<{ id: string; name: string; url: string | null; priceMinor: number | null; currency: string | null; stockStatus: string; variants: string[]; deliveryPolicy: string | null; keywords: string[]; sku: string | null; description: string | null }>;
+  facts: Array<{
+    fact: {
+      id: string;
+      category: string;
+      key: string;
+      value: string;
+      status: string;
+      origin: string;
+      confidence: string;
+      sourceExcerpt: string | null;
+      updatedAt: string;
+    };
+    sourceTitle: string | null;
+  }>;
+  products: Array<{
+    id: string;
+    name: string;
+    url: string | null;
+    priceMinor: number | null;
+    currency: string | null;
+    stockStatus: string;
+    variants: string[];
+    deliveryPolicy: string | null;
+    keywords: string[];
+    sku: string | null;
+    description: string | null;
+  }>;
   rules: Array<{ id: string; kind: string; text: string }>;
   domains: string[];
-  sources: Array<{ id: string; title: string; kind: string; status: string; mimeType: string | null; sizeBytes: number | null; chunkCount: number; error: string | null; scanStatus: string; createdAt: string }>;
+  sources: Array<{
+    id: string;
+    title: string;
+    kind: string;
+    status: string;
+    mimeType: string | null;
+    sizeBytes: number | null;
+    chunkCount: number;
+    error: string | null;
+    scanStatus: string;
+    createdAt: string;
+  }>;
 }
 
-const lines = (v: string) => v.split("\n").map((x) => x.trim()).filter(Boolean);
+const lines = (v: string) =>
+  v
+    .split("\n")
+    .map((x) => x.trim())
+    .filter(Boolean);
 const join = (v?: string[]) => (v ?? []).join("\n");
 
-export function BrainClient({ data, canWrite, onboarding, initialTab }: { data: Data; canWrite: boolean; onboarding: boolean; initialTab?: string }) {
+export function BrainClient({
+  data,
+  canWrite,
+  onboarding,
+  initialTab,
+}: {
+  data: Data;
+  canWrite: boolean;
+  onboarding: boolean;
+  initialTab?: string;
+}) {
   const review = data.facts.filter((f) => f.fact.status === "pending" || f.fact.status === "conflict");
   return (
     <>
       {onboarding ? (
-        <Notice tone="info" className="mb-6" icon={<Sparkles className="h-4 w-4" />} title="Welcome — start by describing your business">
-          Fill in the profile, add your products with approved links, and upload brand guidelines or FAQs. Then connect Instagram in <strong>Integrations</strong>.
+        <Notice
+          tone="info"
+          className="mb-6"
+          icon={<Sparkles className="h-4 w-4" />}
+          title="Welcome — start by describing your business"
+        >
+          Fill in the profile, add your products with approved links, and upload brand guidelines or FAQs.
+          Then connect Instagram in <strong>Integrations</strong>.
         </Notice>
       ) : null}
       <Tabs defaultValue={initialTab ?? "profile"}>
@@ -124,23 +222,56 @@ function ProfileForm({ profile, canWrite }: { profile: Profile; canWrite: boolea
               <Field label="Industry" htmlFor="industry">
                 <Input id="industry" name="industry" defaultValue={p.industry} disabled={!canWrite} />
               </Field>
-              <Field label="Escalation contact" htmlFor="escalationContact" hint="Who handles complaints and exceptions.">
-                <Input id="escalationContact" name="escalationContact" defaultValue={p.escalationContact} disabled={!canWrite} />
+              <Field
+                label="Escalation contact"
+                htmlFor="escalationContact"
+                hint="Who handles complaints and exceptions."
+              >
+                <Input
+                  id="escalationContact"
+                  name="escalationContact"
+                  defaultValue={p.escalationContact}
+                  disabled={!canWrite}
+                />
               </Field>
               <Field label="Description" htmlFor="description" className="md:col-span-2">
-                <Textarea id="description" name="description" defaultValue={p.description} disabled={!canWrite} />
+                <Textarea
+                  id="description"
+                  name="description"
+                  defaultValue={p.description}
+                  disabled={!canWrite}
+                />
               </Field>
               <Field label="Markets (one per line)" htmlFor="markets">
                 <Textarea id="markets" name="markets" defaultValue={join(p.markets)} disabled={!canWrite} />
               </Field>
-              <Field label="Customer segments (one per line)" htmlFor="customerSegments" hint="Used as audience hypotheses, never as sensitive attributes.">
-                <Textarea id="customerSegments" name="customerSegments" defaultValue={join(p.customerSegments)} disabled={!canWrite} />
+              <Field
+                label="Customer segments (one per line)"
+                htmlFor="customerSegments"
+                hint="Used as audience hypotheses, never as sensitive attributes."
+              >
+                <Textarea
+                  id="customerSegments"
+                  name="customerSegments"
+                  defaultValue={join(p.customerSegments)}
+                  disabled={!canWrite}
+                />
               </Field>
               <Field label="Business objectives" htmlFor="objectives">
-                <Textarea id="objectives" name="objectives" defaultValue={join(p.objectives)} disabled={!canWrite} />
+                <Textarea
+                  id="objectives"
+                  name="objectives"
+                  defaultValue={join(p.objectives)}
+                  disabled={!canWrite}
+                />
               </Field>
               <Field label="Differentiators" htmlFor="differentiators">
-                <Textarea id="differentiators" name="differentiators" defaultValue={join(p.differentiators)} disabled={!canWrite} />
+                <Textarea
+                  id="differentiators"
+                  name="differentiators"
+                  defaultValue={join(p.differentiators)}
+                  disabled={!canWrite}
+                />
               </Field>
             </CardBody>
           </Card>
@@ -148,30 +279,70 @@ function ProfileForm({ profile, canWrite }: { profile: Profile; canWrite: boolea
             <CardHeader title="Brand voice & identity" />
             <CardBody className="grid gap-4 md:grid-cols-2">
               <Field label="Tone" htmlFor="tone" className="md:col-span-2">
-                <Input id="tone" name="tone" defaultValue={p.brandVoice?.tone} placeholder="Warm, confident, plain-spoken" disabled={!canWrite} />
+                <Input
+                  id="tone"
+                  name="tone"
+                  defaultValue={p.brandVoice?.tone}
+                  placeholder="Warm, confident, plain-spoken"
+                  disabled={!canWrite}
+                />
               </Field>
               <Field label="Do (one per line)" htmlFor="do">
                 <Textarea id="do" name="do" defaultValue={join(p.brandVoice?.do)} disabled={!canWrite} />
               </Field>
               <Field label="Don't (one per line)" htmlFor="dont">
-                <Textarea id="dont" name="dont" defaultValue={join(p.brandVoice?.dont)} disabled={!canWrite} />
+                <Textarea
+                  id="dont"
+                  name="dont"
+                  defaultValue={join(p.brandVoice?.dont)}
+                  disabled={!canWrite}
+                />
               </Field>
               <Field label="Visual identity" htmlFor="visualIdentity" className="md:col-span-2">
-                <Textarea id="visualIdentity" name="visualIdentity" defaultValue={p.visualIdentity} placeholder="Colors, typography, photo style, logo usage" disabled={!canWrite} />
+                <Textarea
+                  id="visualIdentity"
+                  name="visualIdentity"
+                  defaultValue={p.visualIdentity}
+                  placeholder="Colors, typography, photo style, logo usage"
+                  disabled={!canWrite}
+                />
               </Field>
             </CardBody>
           </Card>
           <Card>
-            <CardHeader title="Policies" description="Used for replies about delivery, returns and pricing." />
+            <CardHeader
+              title="Policies"
+              description="Used for replies about delivery, returns and pricing."
+            />
             <CardBody className="grid gap-4 md:grid-cols-2">
               <Field label="Pricing notes" htmlFor="pricingNotes">
-                <Textarea id="pricingNotes" name="pricingNotes" defaultValue={p.pricingNotes} disabled={!canWrite} />
+                <Textarea
+                  id="pricingNotes"
+                  name="pricingNotes"
+                  defaultValue={p.pricingNotes}
+                  disabled={!canWrite}
+                />
               </Field>
               <Field label="Delivery regions (one per line)" htmlFor="deliveryRegions">
-                <Textarea id="deliveryRegions" name="deliveryRegions" defaultValue={join(p.deliveryRegions)} disabled={!canWrite} />
+                <Textarea
+                  id="deliveryRegions"
+                  name="deliveryRegions"
+                  defaultValue={join(p.deliveryRegions)}
+                  disabled={!canWrite}
+                />
               </Field>
-              <Field label="Policies (returns, guarantees, terms)" htmlFor="policies" className="md:col-span-2">
-                <Textarea id="policies" name="policies" defaultValue={p.policies} disabled={!canWrite} className="min-h-[120px]" />
+              <Field
+                label="Policies (returns, guarantees, terms)"
+                htmlFor="policies"
+                className="md:col-span-2"
+              >
+                <Textarea
+                  id="policies"
+                  name="policies"
+                  defaultValue={p.policies}
+                  disabled={!canWrite}
+                  className="min-h-[120px]"
+                />
               </Field>
             </CardBody>
           </Card>
@@ -179,28 +350,33 @@ function ProfileForm({ profile, canWrite }: { profile: Profile; canWrite: boolea
         <div className="space-y-4">
           <Card className="sticky top-20">
             <CardBody>
-              <div className="text-[12px] font-medium text-fg-muted">Profile completeness</div>
+              <div className="text-fg-muted text-[12px] font-medium">Profile completeness</div>
               <div className="mt-1 text-[28px] font-semibold tabular-nums">{profile.score}%</div>
-              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-border">
-                <div className="h-full rounded-full bg-brand-600" style={{ width: `${profile.score}%` }} />
+              <div className="bg-border mt-2 h-1.5 overflow-hidden rounded-full">
+                <div className="bg-brand-600 h-full rounded-full" style={{ width: `${profile.score}%` }} />
               </div>
               {profile.missing.length ? (
-                <ul className="mt-4 space-y-1 text-[12.5px] text-fg-muted">
+                <ul className="text-fg-muted mt-4 space-y-1 text-[12.5px]">
                   {profile.missing.map((m) => (
                     <li key={m} className="flex items-center gap-1.5">
-                      <span className="h-1 w-1 rounded-full bg-fg-subtle" /> {titleCase(m)}
+                      <span className="bg-fg-subtle h-1 w-1 rounded-full" /> {titleCase(m)}
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="mt-3 text-[12.5px] text-success-600">All key sections are filled in.</p>
+                <p className="text-success-600 mt-3 text-[12.5px]">All key sections are filled in.</p>
               )}
               {canWrite ? (
-                <Button type="submit" variant="primary" className="mt-5 w-full justify-center" loading={isBusy("save")}>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  className="mt-5 w-full justify-center"
+                  loading={isBusy("save")}
+                >
                   Save profile
                 </Button>
               ) : (
-                <p className="mt-4 text-[12px] text-fg-subtle">Read-only for your role.</p>
+                <p className="text-fg-subtle mt-4 text-[12px]">Read-only for your role.</p>
               )}
             </CardBody>
           </Card>
@@ -215,8 +391,19 @@ function FactsPanel({ facts, canWrite }: { facts: Data["facts"]; canWrite: boole
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState("review");
   const [q, setQ] = useState("");
-  const [results, setResults] = useState<Array<{ chunkId: string; sourceTitle: string; text: string; injectionFlag: boolean }> | null>(null);
-  const shown = facts.filter((f) => (filter === "review" ? ["pending", "conflict"].includes(f.fact.status) : filter === "all" ? true : f.fact.status === filter));
+  const [results, setResults] = useState<Array<{
+    chunkId: string;
+    sourceTitle: string;
+    text: string;
+    injectionFlag: boolean;
+  }> | null>(null);
+  const shown = facts.filter((f) =>
+    filter === "review"
+      ? ["pending", "conflict"].includes(f.fact.status)
+      : filter === "all"
+        ? true
+        : f.fact.status === filter,
+  );
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
       <Card>
@@ -225,7 +412,12 @@ function FactsPanel({ facts, canWrite }: { facts: Data["facts"]; canWrite: boole
           description="Agent-extracted facts start as pending. Conflicting values are never auto-resolved."
           actions={
             <>
-              <Select aria-label="Filter facts" value={filter} onChange={(e) => setFilter(e.target.value)} className="h-8 w-[150px] text-[12.5px]">
+              <Select
+                aria-label="Filter facts"
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                className="h-8 w-[150px] text-[12.5px]"
+              >
                 <option value="review">Needs review</option>
                 <option value="approved">Approved</option>
                 <option value="rejected">Rejected</option>
@@ -240,7 +432,11 @@ function FactsPanel({ facts, canWrite }: { facts: Data["facts"]; canWrite: boole
           }
         />
         {shown.length === 0 ? (
-          <EmptyState icon={<BookOpen className="h-5 w-5" />} title={filter === "review" ? "Nothing to review" : "No facts"} description="Add facts manually or extract them from an uploaded source." />
+          <EmptyState
+            icon={<BookOpen className="h-5 w-5" />}
+            title={filter === "review" ? "Nothing to review" : "No facts"}
+            description="Add facts manually or extract them from an uploaded source."
+          />
         ) : (
           <Table>
             <thead>
@@ -255,13 +451,23 @@ function FactsPanel({ facts, canWrite }: { facts: Data["facts"]; canWrite: boole
               {shown.map(({ fact: f, sourceTitle }) => (
                 <tr key={f.id}>
                   <Td className="max-w-[380px]">
-                    <div className="text-[12px] text-fg-subtle">{titleCase(f.category)} · {f.key}</div>
+                    <div className="text-fg-subtle text-[12px]">
+                      {titleCase(f.category)} · {f.key}
+                    </div>
                     <div className="font-medium">{f.value}</div>
-                    {f.sourceExcerpt ? <div className="mt-1 line-clamp-2 text-[12px] text-fg-muted italic">“{f.sourceExcerpt}”</div> : null}
+                    {f.sourceExcerpt ? (
+                      <div className="text-fg-muted mt-1 line-clamp-2 text-[12px] italic">
+                        “{f.sourceExcerpt}”
+                      </div>
+                    ) : null}
                   </Td>
-                  <Td className="text-[12.5px] text-fg-muted">
+                  <Td className="text-fg-muted text-[12.5px]">
                     {sourceTitle ?? (f.origin === "user" ? "Entered by user" : "—")}
-                    {f.origin === "agent" ? <div className="text-[11.5px]">Agent · confidence {Number(f.confidence).toFixed(2)}</div> : null}
+                    {f.origin === "agent" ? (
+                      <div className="text-[11.5px]">
+                        Agent · confidence {Number(f.confidence).toFixed(2)}
+                      </div>
+                    ) : null}
                   </Td>
                   <Td>
                     {f.status === "conflict" ? (
@@ -275,10 +481,33 @@ function FactsPanel({ facts, canWrite }: { facts: Data["facts"]; canWrite: boole
                   <Td className="text-right">
                     {canWrite && f.status !== "approved" ? (
                       <div className="inline-flex gap-1">
-                        <Button size="sm" variant="ghost" aria-label={`Approve ${f.key}`} loading={isBusy(`a${f.id}`)} onClick={() => run(`a${f.id}`, () => api(`/brain/facts/${f.id}/review`, { body: { decision: "approve" } }), { success: "Fact approved" })}>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          aria-label={`Approve ${f.key}`}
+                          loading={isBusy(`a${f.id}`)}
+                          onClick={() =>
+                            run(
+                              `a${f.id}`,
+                              () => api(`/brain/facts/${f.id}/review`, { body: { decision: "approve" } }),
+                              { success: "Fact approved" },
+                            )
+                          }
+                        >
                           <Check className="h-3.5 w-3.5" /> Approve
                         </Button>
-                        <Button size="sm" variant="ghost" aria-label={`Reject ${f.key}`} onClick={() => run(`r${f.id}`, () => api(`/brain/facts/${f.id}/review`, { body: { decision: "reject" } }), { success: "Fact rejected" })}>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          aria-label={`Reject ${f.key}`}
+                          onClick={() =>
+                            run(
+                              `r${f.id}`,
+                              () => api(`/brain/facts/${f.id}/review`, { body: { decision: "reject" } }),
+                              { success: "Fact rejected" },
+                            )
+                          }
+                        >
                           <X className="h-3.5 w-3.5" />
                         </Button>
                       </div>
@@ -296,21 +525,30 @@ function FactsPanel({ facts, canWrite }: { facts: Data["facts"]; canWrite: boole
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              void run("search", async () => setResults(await api(`/knowledge/search?q=${encodeURIComponent(q)}`)), { refresh: false });
+              void run(
+                "search",
+                async () => setResults(await api(`/knowledge/search?q=${encodeURIComponent(q)}`)),
+                { refresh: false },
+              );
             }}
             className="flex gap-2"
           >
-            <Input aria-label="Search query" value={q} onChange={(e) => setQ(e.target.value)} placeholder="e.g. shipping policy" />
+            <Input
+              aria-label="Search query"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="e.g. shipping policy"
+            />
             <Button type="submit" size="icon" aria-label="Search" loading={isBusy("search")}>
               <Search className="h-4 w-4" />
             </Button>
           </form>
           {results ? (
             <ul className="mt-4 space-y-3">
-              {results.length === 0 ? <li className="text-[13px] text-fg-muted">No matches.</li> : null}
+              {results.length === 0 ? <li className="text-fg-muted text-[13px]">No matches.</li> : null}
               {results.map((r) => (
-                <li key={r.chunkId} className="rounded-lg border border-border p-3">
-                  <div className="mb-1 flex items-center gap-2 text-[12px] text-fg-subtle">
+                <li key={r.chunkId} className="border-border rounded-lg border p-3">
+                  <div className="text-fg-subtle mb-1 flex items-center gap-2 text-[12px]">
                     <FileText className="h-3.5 w-3.5" /> {r.sourceTitle}
                     {r.injectionFlag ? <Badge tone="warning">Instruction-like text</Badge> : null}
                   </div>
@@ -321,23 +559,37 @@ function FactsPanel({ facts, canWrite }: { facts: Data["facts"]; canWrite: boole
           ) : null}
         </CardBody>
       </Card>
-      <Dialog open={open} onOpenChange={setOpen} title="Add fact" description="Facts you add are approved immediately. Conflicts with existing values are flagged.">
+      <Dialog
+        open={open}
+        onOpenChange={setOpen}
+        title="Add fact"
+        description="Facts you add are approved immediately. Conflicts with existing values are flagged."
+      >
         <form
           id="fact-form"
           onSubmit={(e) => {
             e.preventDefault();
             const f = new FormData(e.currentTarget);
-            void run("fact", () => api("/brain/facts", { body: { category: f.get("category"), key: f.get("key"), value: f.get("value") } }), { success: "Fact added" }).then((r) => r && setOpen(false));
+            void run(
+              "fact",
+              () =>
+                api("/brain/facts", {
+                  body: { category: f.get("category"), key: f.get("key"), value: f.get("value") },
+                }),
+              { success: "Fact added" },
+            ).then((r) => r && setOpen(false));
           }}
           className="space-y-4"
         >
           <Field label="Category" htmlFor="category">
             <Select id="category" name="category" defaultValue="product">
-              {["product", "pricing", "policy", "audience", "offer", "brand", "faq", "delivery", "other"].map((c) => (
-                <option key={c} value={c}>
-                  {titleCase(c)}
-                </option>
-              ))}
+              {["product", "pricing", "policy", "audience", "offer", "brand", "faq", "delivery", "other"].map(
+                (c) => (
+                  <option key={c} value={c}>
+                    {titleCase(c)}
+                  </option>
+                ),
+              )}
             </Select>
           </Field>
           <Field label="Key" htmlFor="key" hint="e.g. “Return window”">
@@ -357,7 +609,15 @@ function FactsPanel({ facts, canWrite }: { facts: Data["facts"]; canWrite: boole
   );
 }
 
-function CatalogPanel({ products, domains, canWrite }: { products: Data["products"]; domains: string[]; canWrite: boolean }) {
+function CatalogPanel({
+  products,
+  domains,
+  canWrite,
+}: {
+  products: Data["products"];
+  domains: string[];
+  canWrite: boolean;
+}) {
   const { run, isBusy } = useAction();
   const [edit, setEdit] = useState<Data["products"][number] | "new" | null>(null);
   const [domain, setDomain] = useState("");
@@ -377,7 +637,11 @@ function CatalogPanel({ products, domains, canWrite }: { products: Data["product
           }
         />
         {products.length === 0 ? (
-          <EmptyState icon={<Package className="h-5 w-5" />} title="No products yet" description="Add products with approved URLs so agents and comment replies can reference them." />
+          <EmptyState
+            icon={<Package className="h-5 w-5" />}
+            title="No products yet"
+            description="Add products with approved URLs so agents and comment replies can reference them."
+          />
         ) : (
           <Table>
             <thead>
@@ -394,13 +658,36 @@ function CatalogPanel({ products, domains, canWrite }: { products: Data["product
                 <tr key={p.id}>
                   <Td>
                     <div className="font-medium">{p.name}</div>
-                    <div className="text-[12px] text-fg-muted">{[p.sku, p.variants.join(", ")].filter(Boolean).join(" · ") || "—"}</div>
+                    <div className="text-fg-muted text-[12px]">
+                      {[p.sku, p.variants.join(", ")].filter(Boolean).join(" · ") || "—"}
+                    </div>
                   </Td>
-                  <Td className="tabular-nums">{p.priceMinor !== null ? fmtMoney(p.priceMinor, p.currency ?? "USD") : <span className="text-fg-subtle">Not set</span>}</Td>
+                  <Td className="tabular-nums">
+                    {p.priceMinor !== null ? (
+                      fmtMoney(p.priceMinor, p.currency ?? "USD")
+                    ) : (
+                      <span className="text-fg-subtle">Not set</span>
+                    )}
+                  </Td>
                   <Td>
-                    <StatusBadge status={p.stockStatus === "in_stock" ? "available" : p.stockStatus === "unknown" ? "unknown" : p.stockStatus} label={titleCase(p.stockStatus)} />
+                    <StatusBadge
+                      status={
+                        p.stockStatus === "in_stock"
+                          ? "available"
+                          : p.stockStatus === "unknown"
+                            ? "unknown"
+                            : p.stockStatus
+                      }
+                      label={titleCase(p.stockStatus)}
+                    />
                   </Td>
-                  <Td className="max-w-[220px] truncate text-[12.5px]">{p.url ? <span className="text-brand-600">{p.url}</span> : <span className="text-fg-subtle">No link</span>}</Td>
+                  <Td className="max-w-[220px] truncate text-[12.5px]">
+                    {p.url ? (
+                      <span className="text-brand-600">{p.url}</span>
+                    ) : (
+                      <span className="text-fg-subtle">No link</span>
+                    )}
+                  </Td>
                   <Td className="text-right">
                     {canWrite ? (
                       <Button size="sm" variant="ghost" onClick={() => setEdit(p)}>
@@ -415,32 +702,56 @@ function CatalogPanel({ products, domains, canWrite }: { products: Data["product
         )}
       </Card>
       <Card>
-        <CardHeader title="Link allowlist" description="Replies, posts and ads may only link to these domains." />
+        <CardHeader
+          title="Link allowlist"
+          description="Replies, posts and ads may only link to these domains."
+        />
         <CardBody>
           {canWrite ? (
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                void run("domain", () => api("/brain/domains", { body: { domain } }), { success: "Domain allowed" }).then((r) => r && setDomain(""));
+                void run("domain", () => api("/brain/domains", { body: { domain } }), {
+                  success: "Domain allowed",
+                }).then((r) => r && setDomain(""));
               }}
               className="mb-4 flex gap-2"
             >
-              <Input aria-label="Domain" value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="shop.example.com" />
+              <Input
+                aria-label="Domain"
+                value={domain}
+                onChange={(e) => setDomain(e.target.value)}
+                placeholder="shop.example.com"
+              />
               <Button type="submit" loading={isBusy("domain")}>
                 Add
               </Button>
             </form>
           ) : null}
           {domains.length === 0 ? (
-            <p className="text-[13px] text-fg-muted">No domains yet. Any link in a draft will be blocked.</p>
+            <p className="text-fg-muted text-[13px]">No domains yet. Any link in a draft will be blocked.</p>
           ) : (
             <ul className="space-y-1.5">
               {domains.map((d) => (
-                <li key={d} className="flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-[13px]">
-                  <Globe className="h-3.5 w-3.5 text-fg-subtle" />
+                <li
+                  key={d}
+                  className="border-border flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-[13px]"
+                >
+                  <Globe className="text-fg-subtle h-3.5 w-3.5" />
                   <span className="flex-1 truncate">{d}</span>
                   {canWrite ? (
-                    <Button size="icon" variant="ghost" aria-label={`Remove ${d}`} onClick={() => run(`d${d}`, () => api(`/brain/domains?domain=${encodeURIComponent(d)}`, { method: "DELETE" }), { success: "Domain removed" })}>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      aria-label={`Remove ${d}`}
+                      onClick={() =>
+                        run(
+                          `d${d}`,
+                          () => api(`/brain/domains?domain=${encodeURIComponent(d)}`, { method: "DELETE" }),
+                          { success: "Domain removed" },
+                        )
+                      }
+                    >
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   ) : null}
@@ -450,7 +761,13 @@ function CatalogPanel({ products, domains, canWrite }: { products: Data["product
           )}
         </CardBody>
       </Card>
-      <Dialog open={edit !== null} onOpenChange={(o) => !o && setEdit(null)} title={cur ? `Edit ${cur.name}` : "Add product"} description="The product URL's domain is added to the link allowlist." size="lg">
+      <Dialog
+        open={edit !== null}
+        onOpenChange={(o) => !o && setEdit(null)}
+        title={cur ? `Edit ${cur.name}` : "Add product"}
+        description="The product URL's domain is added to the link allowlist."
+        size="lg"
+      >
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -468,7 +785,15 @@ function CatalogPanel({ products, domains, canWrite }: { products: Data["product
               deliveryPolicy: f.get("deliveryPolicy") || null,
               keywords: lines(String(f.get("keywords") ?? "").replace(/,/g, "\n")),
             };
-            void run("product", () => api(cur ? `/brain/products/${cur.id}` : "/brain/products", { method: cur ? "PATCH" : "POST", body }), { success: "Product saved" }).then((r) => r && setEdit(null));
+            void run(
+              "product",
+              () =>
+                api(cur ? `/brain/products/${cur.id}` : "/brain/products", {
+                  method: cur ? "PATCH" : "POST",
+                  body,
+                }),
+              { success: "Product saved" },
+            ).then((r) => r && setEdit(null));
           }}
           className="grid gap-4 md:grid-cols-2"
         >
@@ -479,10 +804,25 @@ function CatalogPanel({ products, domains, canWrite }: { products: Data["product
             <Input id="p-sku" name="sku" defaultValue={cur?.sku ?? ""} />
           </Field>
           <Field label="Approved product URL" htmlFor="p-url" className="md:col-span-2">
-            <Input id="p-url" name="url" type="url" defaultValue={cur?.url ?? ""} placeholder="https://shop.example.com/products/…" />
+            <Input
+              id="p-url"
+              name="url"
+              type="url"
+              defaultValue={cur?.url ?? ""}
+              placeholder="https://shop.example.com/products/…"
+            />
           </Field>
-          <Field label="Price" htmlFor="p-price" hint="Leave empty if not public. Replies about price escalate when missing.">
-            <Input id="p-price" name="price" inputMode="decimal" defaultValue={cur?.priceMinor != null ? (cur.priceMinor / 100).toFixed(2) : ""} />
+          <Field
+            label="Price"
+            htmlFor="p-price"
+            hint="Leave empty if not public. Replies about price escalate when missing."
+          >
+            <Input
+              id="p-price"
+              name="price"
+              inputMode="decimal"
+              defaultValue={cur?.priceMinor != null ? (cur.priceMinor / 100).toFixed(2) : ""}
+            />
           </Field>
           <Field label="Currency" htmlFor="p-currency">
             <Input id="p-currency" name="currency" defaultValue={cur?.currency ?? "USD"} maxLength={3} />
@@ -498,7 +838,12 @@ function CatalogPanel({ products, domains, canWrite }: { products: Data["product
           <Field label="Variants (comma separated)" htmlFor="p-variants">
             <Input id="p-variants" name="variants" defaultValue={cur?.variants.join(", ")} />
           </Field>
-          <Field label="Keywords for matching comments" htmlFor="p-keywords" className="md:col-span-2" hint="e.g. candle, aurora">
+          <Field
+            label="Keywords for matching comments"
+            htmlFor="p-keywords"
+            className="md:col-span-2"
+            hint="e.g. candle, aurora"
+          >
             <Input id="p-keywords" name="keywords" defaultValue={cur?.keywords.join(", ")} />
           </Field>
           <Field label="Delivery policy" htmlFor="p-delivery" className="md:col-span-2">
@@ -509,7 +854,15 @@ function CatalogPanel({ products, domains, canWrite }: { products: Data["product
           </Field>
           <div className="flex justify-between md:col-span-2">
             {cur ? (
-              <Button type="button" variant="ghost" onClick={() => run("archive", () => api(`/brain/products/${cur.id}`, { method: "DELETE" }), { success: "Product archived" }).then(() => setEdit(null))}>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() =>
+                  run("archive", () => api(`/brain/products/${cur.id}`, { method: "DELETE" }), {
+                    success: "Product archived",
+                  }).then(() => setEdit(null))
+                }
+              >
                 <Trash2 className="h-3.5 w-3.5" /> Archive
               </Button>
             ) : (
@@ -544,12 +897,21 @@ function RulesPanel({ rules, canWrite }: { rules: Data["rules"]; canWrite: boole
             <CardHeader title={title} description={desc} />
             <CardBody>
               <ul className="mb-3 space-y-1.5">
-                {items.length === 0 ? <li className="text-[13px] text-fg-subtle">None yet.</li> : null}
+                {items.length === 0 ? <li className="text-fg-subtle text-[13px]">None yet.</li> : null}
                 {items.map((r) => (
-                  <li key={r.id} className="flex items-start gap-2 rounded-md bg-surface-2 px-2.5 py-1.5 text-[13px]">
+                  <li
+                    key={r.id}
+                    className="bg-surface-2 flex items-start gap-2 rounded-md px-2.5 py-1.5 text-[13px]"
+                  >
                     <span className="flex-1">{r.text}</span>
                     {canWrite ? (
-                      <button className="text-fg-subtle hover:text-danger-600" aria-label={`Remove rule ${r.text}`} onClick={() => run(`rm${r.id}`, () => api(`/brain/rules/${r.id}`, { method: "DELETE" }))}>
+                      <button
+                        className="text-fg-subtle hover:text-danger-600"
+                        aria-label={`Remove rule ${r.text}`}
+                        onClick={() =>
+                          run(`rm${r.id}`, () => api(`/brain/rules/${r.id}`, { method: "DELETE" }))
+                        }
+                      >
                         <X className="h-3.5 w-3.5" />
                       </button>
                     ) : null}
@@ -561,7 +923,9 @@ function RulesPanel({ rules, canWrite }: { rules: Data["rules"]; canWrite: boole
                   onSubmit={(e) => {
                     e.preventDefault();
                     const input = e.currentTarget.elements.namedItem("text") as HTMLInputElement;
-                    void run(`add${kind}`, () => api("/brain/rules", { body: { kind, text: input.value } }), { success: "Rule added" }).then((r) => {
+                    void run(`add${kind}`, () => api("/brain/rules", { body: { kind, text: input.value } }), {
+                      success: "Rule added",
+                    }).then((r) => {
                       if (r) input.value = "";
                     });
                   }}
@@ -604,14 +968,21 @@ function SourcesPanel({ sources, canWrite }: { sources: Data["sources"]; canWrit
                   if (!file) return;
                   const form = new FormData();
                   form.set("file", file);
-                  void run("upload", () => api("/knowledge/sources", { form }), { success: "Uploaded — processing in the background" });
+                  void run("upload", () => api("/knowledge/sources", { form }), {
+                    success: "Uploaded — processing in the background",
+                  });
                   e.target.value = "";
                 }}
               />
               <Button size="sm" onClick={() => setPaste(true)}>
                 <FileText className="h-3.5 w-3.5" /> Paste text
               </Button>
-              <Button size="sm" variant="primary" loading={isBusy("upload")} onClick={() => fileRef.current?.click()}>
+              <Button
+                size="sm"
+                variant="primary"
+                loading={isBusy("upload")}
+                onClick={() => fileRef.current?.click()}
+              >
                 <Upload className="h-3.5 w-3.5" /> Upload
               </Button>
             </>
@@ -619,7 +990,11 @@ function SourcesPanel({ sources, canWrite }: { sources: Data["sources"]; canWrit
         }
       />
       {sources.length === 0 ? (
-        <EmptyState icon={<Link2 className="h-5 w-5" />} title="No sources yet" description="Upload brand guidelines, FAQs, product sheets or offer terms." />
+        <EmptyState
+          icon={<Link2 className="h-5 w-5" />}
+          title="No sources yet"
+          description="Upload brand guidelines, FAQs, product sheets or offer terms."
+        />
       ) : (
         <Table>
           <thead>
@@ -636,23 +1011,44 @@ function SourcesPanel({ sources, canWrite }: { sources: Data["sources"]; canWrit
               <tr key={s.id}>
                 <Td>
                   <div className="font-medium">{s.title}</div>
-                  <div className="text-[12px] text-fg-muted">
-                    {s.mimeType ?? s.kind} {s.sizeBytes ? `· ${(s.sizeBytes / 1024).toFixed(0)} KB` : ""} · scan: {s.scanStatus.replace("_", " ")}
+                  <div className="text-fg-muted text-[12px]">
+                    {s.mimeType ?? s.kind} {s.sizeBytes ? `· ${(s.sizeBytes / 1024).toFixed(0)} KB` : ""} ·
+                    scan: {s.scanStatus.replace("_", " ")}
                   </div>
-                  {s.error ? <div className="text-[12px] text-danger-600">{s.error}</div> : null}
+                  {s.error ? <div className="text-danger-600 text-[12px]">{s.error}</div> : null}
                 </Td>
                 <Td>
                   <StatusBadge status={s.status} />
                 </Td>
                 <Td className="tabular-nums">{s.chunkCount}</Td>
-                <Td className="text-[12.5px] text-fg-muted">{fmtRelative(s.createdAt)}</Td>
+                <Td className="text-fg-muted text-[12.5px]">{fmtRelative(s.createdAt)}</Td>
                 <Td className="text-right">
                   {canWrite ? (
                     <div className="inline-flex gap-1">
-                      <Button size="sm" variant="ghost" disabled={s.status !== "ready"} title={s.status !== "ready" ? "Available once processing is complete" : undefined} loading={isBusy(`x${s.id}`)} onClick={() => run(`x${s.id}`, () => api(`/knowledge/sources/${s.id}/extract`, { body: {} }), { success: "Extraction started — facts will appear as pending for review" })}>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={s.status !== "ready"}
+                        title={s.status !== "ready" ? "Available once processing is complete" : undefined}
+                        loading={isBusy(`x${s.id}`)}
+                        onClick={() =>
+                          run(`x${s.id}`, () => api(`/knowledge/sources/${s.id}/extract`, { body: {} }), {
+                            success: "Extraction started — facts will appear as pending for review",
+                          })
+                        }
+                      >
                         <Sparkles className="h-3.5 w-3.5" /> Extract facts
                       </Button>
-                      <Button size="sm" variant="ghost" aria-label={`Delete ${s.title}`} onClick={() => run(`del${s.id}`, () => api(`/knowledge/sources/${s.id}`, { method: "DELETE" }), { success: "Source deleted" })}>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        aria-label={`Delete ${s.title}`}
+                        onClick={() =>
+                          run(`del${s.id}`, () => api(`/knowledge/sources/${s.id}`, { method: "DELETE" }), {
+                            success: "Source deleted",
+                          })
+                        }
+                      >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </div>
@@ -668,7 +1064,11 @@ function SourcesPanel({ sources, canWrite }: { sources: Data["sources"]; canWrit
           onSubmit={(e) => {
             e.preventDefault();
             const f = new FormData(e.currentTarget);
-            void run("paste", () => api("/knowledge/sources", { body: { title: f.get("title"), text: f.get("text") } }), { success: "Source added" }).then((r) => r && setPaste(false));
+            void run(
+              "paste",
+              () => api("/knowledge/sources", { body: { title: f.get("title"), text: f.get("text") } }),
+              { success: "Source added" },
+            ).then((r) => r && setPaste(false));
           }}
           className="space-y-4"
         >

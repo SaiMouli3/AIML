@@ -19,7 +19,13 @@ export interface ApprovalSubject {
   build(
     ctx: Ctx,
     subjectId: string,
-  ): Promise<{ payload: Record<string, unknown>; summary: ApprovalSummary; version?: number | null; budgetMinor?: number | null; executeBy?: Date | null }>;
+  ): Promise<{
+    payload: Record<string, unknown>;
+    summary: ApprovalSummary;
+    version?: number | null;
+    budgetMinor?: number | null;
+    executeBy?: Date | null;
+  }>;
   onApproved?(ctx: Ctx, approval: typeof s.approvalRequests.$inferSelect): Promise<void>;
   onClosed?(ctx: Ctx, approval: typeof s.approvalRequests.$inferSelect, status: string): Promise<void>;
 }
@@ -64,7 +70,9 @@ export async function requestApproval(
   if (same) return same;
   for (const stale of open) await closeApproval(ctx, stale, "invalidated", "Superseded by a newer version");
 
-  const ws = (await ctx.tx.select().from(s.workspaces).where(eq(s.workspaces.id, ctx.workspaceId)).limit(1))[0]!;
+  const ws = (
+    await ctx.tx.select().from(s.workspaces).where(eq(s.workspaces.id, ctx.workspaceId)).limit(1)
+  )[0]!;
   const required = requiredApprovalsFor(input.actionType, {
     budgetMinor: built.budgetMinor,
     twoPersonThresholdMinor: ws.settings.twoPersonApprovalAdBudgetMinor ?? null,
@@ -87,7 +95,9 @@ export async function requestApproval(
       requestedBy: ctx.actorType === "user" ? ctx.userId : null,
       requestedByAgentRunId: input.agentRunId ?? null,
       // Scheduled actions stay approvable until shortly after their scheduled time.
-      expiresAt: new Date(Math.max(Date.now() + expiryHours * 3600_000, (built.executeBy?.getTime() ?? 0) + 6 * 3600_000)),
+      expiresAt: new Date(
+        Math.max(Date.now() + expiryHours * 3600_000, (built.executeBy?.getTime() ?? 0) + 6 * 3600_000),
+      ),
       correlationId: ctx.correlationId,
     })
     .returning();
@@ -98,7 +108,11 @@ export async function requestApproval(
     approvalRequestId: row!.id,
     metadata: { actionType: input.actionType, tier, payloadHash, requiredApprovals: required },
   });
-  await notify(ctx, { kind: "approval_requested", title: `Approval needed: ${built.summary.title}`, link: `/approvals?id=${row!.id}` });
+  await notify(ctx, {
+    kind: "approval_requested",
+    title: `Approval needed: ${built.summary.title}`,
+    link: `/approvals?id=${row!.id}`,
+  });
   return row!;
 }
 
@@ -146,7 +160,12 @@ async function expireApprovals(ctx: Ctx) {
     )
     .returning();
   for (const a of expired) {
-    await audit(ctx, { action: "approval.expired", targetType: a.subjectType, targetId: a.subjectId, approvalRequestId: a.id });
+    await audit(ctx, {
+      action: "approval.expired",
+      targetType: a.subjectType,
+      targetId: a.subjectId,
+      approvalRequestId: a.id,
+    });
     await subjects.get(a.actionType as ActionType)?.onClosed?.(ctx, a, "expired");
   }
 }
@@ -157,17 +176,26 @@ export type Decision = "approve" | "reject" | "request_changes" | "revoke";
  * Record a human decision. The approver must be a human with permission for the action's tier, must
  * have seen the current payload hash, and (for two-person approvals) must differ from earlier approvers.
  */
-export async function decide(ctx: Ctx, id: string, input: { decision: Decision; reason?: string; payloadHash: string }) {
+export async function decide(
+  ctx: Ctx,
+  id: string,
+  input: { decision: Decision; reason?: string; payloadHash: string },
+) {
   const userId = requireUser(ctx);
   const { approval } = await getApproval(ctx, id);
   requirePermission(ctx, approval.tier >= 4 ? "approvals.decide.tier4" : "approvals.decide.tier3");
   if (input.payloadHash !== approval.payloadHash) {
-    throw new AppError("APPROVAL_INVALIDATED", "You reviewed an outdated version. Reload to see the current payload.");
+    throw new AppError(
+      "APPROVAL_INVALIDATED",
+      "You reviewed an outdated version. Reload to see the current payload.",
+    );
   }
 
   if (input.decision === "revoke") {
-    if (approval.status !== "approved" && approval.status !== "pending") throw new AppError("CONFLICT", `Cannot revoke an approval that is ${approval.status}`);
-    if (approval.executedAt) throw new AppError("CONFLICT", "Already executed; use the provider action (e.g. pause/delete) instead");
+    if (approval.status !== "approved" && approval.status !== "pending")
+      throw new AppError("CONFLICT", `Cannot revoke an approval that is ${approval.status}`);
+    if (approval.executedAt)
+      throw new AppError("CONFLICT", "Already executed; use the provider action (e.g. pause/delete) instead");
   } else if (approval.status !== "pending") {
     throw new AppError("CONFLICT", `Approval is ${approval.status}`);
   }
@@ -176,7 +204,10 @@ export async function decide(ctx: Ctx, id: string, input: { decision: Decision; 
     const current = await subjectFor(approval.actionType).build(ctx, approval.subjectId);
     if (hashPayload(current.payload) !== approval.payloadHash) {
       await closeApproval(ctx, approval, "invalidated", "Content changed after the approval was requested");
-      throw new AppError("APPROVAL_INVALIDATED", "The content changed after approval was requested. A new request is needed.");
+      throw new AppError(
+        "APPROVAL_INVALIDATED",
+        "The content changed after approval was requested. A new request is needed.",
+      );
     }
   }
 
@@ -188,24 +219,63 @@ export async function decide(ctx: Ctx, id: string, input: { decision: Decision; 
     const prior = await ctx.tx
       .select()
       .from(s.approvalDecisions)
-      .where(and(eq(s.approvalDecisions.requestId, id), eq(s.approvalDecisions.decision, "approve"), eq(s.approvalDecisions.payloadHash, approval.payloadHash)));
-    if (prior.some((p) => p.userId === userId)) throw new AppError("CONFLICT", "You already approved this request");
+      .where(
+        and(
+          eq(s.approvalDecisions.requestId, id),
+          eq(s.approvalDecisions.decision, "approve"),
+          eq(s.approvalDecisions.payloadHash, approval.payloadHash),
+        ),
+      );
+    if (prior.some((p) => p.userId === userId))
+      throw new AppError("CONFLICT", "You already approved this request");
     if (approval.requiredApprovals > 1 && approval.requestedBy === userId) {
-      throw new AppError("FORBIDDEN", "Two-person approval: the requester cannot approve their own high-risk request");
+      throw new AppError(
+        "FORBIDDEN",
+        "Two-person approval: the requester cannot approve their own high-risk request",
+      );
     }
-    await ctx.tx.insert(s.approvalDecisions).values({ workspaceId: ctx.workspaceId, requestId: id, decision: "approve", reason: input.reason ?? null, payloadHash: approval.payloadHash, userId });
+    await ctx.tx.insert(s.approvalDecisions).values({
+      workspaceId: ctx.workspaceId,
+      requestId: id,
+      decision: "approve",
+      reason: input.reason ?? null,
+      payloadHash: approval.payloadHash,
+      userId,
+    });
     const count = prior.length + 1;
-    await audit(ctx, { action: "approval.approved", targetType: approval.subjectType, targetId: approval.subjectId, approvalRequestId: id, metadata: { count, required: approval.requiredApprovals } });
+    await audit(ctx, {
+      action: "approval.approved",
+      targetType: approval.subjectType,
+      targetId: approval.subjectId,
+      approvalRequestId: id,
+      metadata: { count, required: approval.requiredApprovals },
+    });
     if (count >= approval.requiredApprovals) {
-      const [updated] = await ctx.tx.update(s.approvalRequests).set({ status: "approved", decidedAt: new Date() }).where(eq(s.approvalRequests.id, id)).returning();
+      const [updated] = await ctx.tx
+        .update(s.approvalRequests)
+        .set({ status: "approved", decidedAt: new Date() })
+        .where(eq(s.approvalRequests.id, id))
+        .returning();
       await subjectFor(approval.actionType).onApproved?.(ctx, updated!);
       return updated!;
     }
     return approval;
   }
 
-  await ctx.tx.insert(s.approvalDecisions).values({ workspaceId: ctx.workspaceId, requestId: id, decision: input.decision, reason: input.reason ?? null, payloadHash: approval.payloadHash, userId });
-  const status = input.decision === "reject" ? "rejected" : input.decision === "request_changes" ? "changes_requested" : "revoked";
+  await ctx.tx.insert(s.approvalDecisions).values({
+    workspaceId: ctx.workspaceId,
+    requestId: id,
+    decision: input.decision,
+    reason: input.reason ?? null,
+    payloadHash: approval.payloadHash,
+    userId,
+  });
+  const status =
+    input.decision === "reject"
+      ? "rejected"
+      : input.decision === "request_changes"
+        ? "changes_requested"
+        : "revoked";
   const updated = await closeApproval(ctx, approval, status, input.reason ?? null);
   return updated;
 }
@@ -216,13 +286,24 @@ async function closeApproval(ctx: Ctx, approval: ApprovalRow, status: string, re
     .set({ status, statusReason: reason, decidedAt: new Date() })
     .where(eq(s.approvalRequests.id, approval.id))
     .returning();
-  await audit(ctx, { action: `approval.${status}`, targetType: approval.subjectType, targetId: approval.subjectId, approvalRequestId: approval.id, metadata: { reason } });
+  await audit(ctx, {
+    action: `approval.${status}`,
+    targetType: approval.subjectType,
+    targetId: approval.subjectId,
+    approvalRequestId: approval.id,
+    metadata: { reason },
+  });
   await subjects.get(approval.actionType as ActionType)?.onClosed?.(ctx, updated!, status);
   return updated!;
 }
 
 /** Called whenever a subject is materially edited: every open approval for it stops applying. */
-export async function invalidateApprovalsForSubject(ctx: Ctx, subjectId: string, reason: string, actionTypes?: ActionType[]) {
+export async function invalidateApprovalsForSubject(
+  ctx: Ctx,
+  subjectId: string,
+  reason: string,
+  actionTypes?: ActionType[],
+) {
   const conds = [
     eq(s.approvalRequests.workspaceId, ctx.workspaceId),
     eq(s.approvalRequests.subjectId, subjectId),
@@ -230,7 +311,10 @@ export async function invalidateApprovalsForSubject(ctx: Ctx, subjectId: string,
     sql`${s.approvalRequests.executedAt} is null`,
   ];
   if (actionTypes?.length) conds.push(inArray(s.approvalRequests.actionType, actionTypes));
-  const open = await ctx.tx.select().from(s.approvalRequests).where(and(...conds));
+  const open = await ctx.tx
+    .select()
+    .from(s.approvalRequests)
+    .where(and(...conds));
   for (const a of open) await closeApproval(ctx, a, "invalidated", reason);
   return open.length;
 }
@@ -252,13 +336,18 @@ export async function loadApprovalForExecution(ctx: Ctx, approvalId: string) {
 }
 
 export async function markApprovalExecuted(ctx: Ctx, approvalId: string) {
-  await ctx.tx.update(s.approvalRequests).set({ status: "executed", executedAt: new Date() }).where(eq(s.approvalRequests.id, approvalId));
+  await ctx.tx
+    .update(s.approvalRequests)
+    .set({ status: "executed", executedAt: new Date() })
+    .where(eq(s.approvalRequests.id, approvalId));
 }
 
 export async function pendingApprovalCount(ctx: Ctx) {
   const [r] = await ctx.tx
     .select({ c: sql<number>`count(*)::int` })
     .from(s.approvalRequests)
-    .where(and(eq(s.approvalRequests.workspaceId, ctx.workspaceId), eq(s.approvalRequests.status, "pending")));
+    .where(
+      and(eq(s.approvalRequests.workspaceId, ctx.workspaceId), eq(s.approvalRequests.status, "pending")),
+    );
   return r?.c ?? 0;
 }

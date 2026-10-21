@@ -77,8 +77,18 @@ export interface MediaProvider {
   readonly name: string;
   readonly mode: "live" | "mock";
   models(): ModelInfo[];
-  estimate(model: ModelInfo, prompt: string, params: Record<string, unknown>): Promise<{ credits: number | null; usd: number | null }>;
-  submit(model: ModelInfo, prompt: string, params: Record<string, unknown>, idempotencyKey: string, webhookUrl?: string): Promise<SubmitResult>;
+  estimate(
+    model: ModelInfo,
+    prompt: string,
+    params: Record<string, unknown>,
+  ): Promise<{ credits: number | null; usd: number | null }>;
+  submit(
+    model: ModelInfo,
+    prompt: string,
+    params: Record<string, unknown>,
+    idempotencyKey: string,
+    webhookUrl?: string,
+  ): Promise<SubmitResult>;
   status(requestId: string): Promise<StatusResult>;
   cancel(requestId: string): Promise<{ canceled: boolean; reason?: string }>;
   download(url: string): Promise<{ data: Buffer; contentType: string }>;
@@ -87,12 +97,19 @@ export interface MediaProvider {
 function mapHiggsfieldError(status: number, detail: string, mutation: boolean): ProviderError {
   const msg = `Higgsfield HTTP ${status}: ${detail}`.slice(0, 400);
   if (status === 401) return new ProviderError("auth", "higgsfield", msg, { status });
-  if (status === 403) return new ProviderError("permission", "higgsfield", `${msg} (insufficient credits)`, { status });
+  if (status === 403)
+    return new ProviderError("permission", "higgsfield", `${msg} (insufficient credits)`, { status });
   if (status === 404) return new ProviderError("not_found", "higgsfield", msg, { status });
   if (status === 422) return new ProviderError("invalid", "higgsfield", msg, { status });
-  if (status === 400) return new ProviderError(/concurren/i.test(detail) ? "rate_limit" : "invalid", "higgsfield", msg, { status, retryAfterMs: 30_000 });
-  if (status === 423 || status === 503 || status === 429) return new ProviderError("rate_limit", "higgsfield", msg, { status, retryAfterMs: 60_000 });
-  if (status >= 500) return new ProviderError(mutation ? "unknown_outcome" : "transient", "higgsfield", msg, { status });
+  if (status === 400)
+    return new ProviderError(/concurren/i.test(detail) ? "rate_limit" : "invalid", "higgsfield", msg, {
+      status,
+      retryAfterMs: 30_000,
+    });
+  if (status === 423 || status === 503 || status === 429)
+    return new ProviderError("rate_limit", "higgsfield", msg, { status, retryAfterMs: 60_000 });
+  if (status >= 500)
+    return new ProviderError(mutation ? "unknown_outcome" : "transient", "higgsfield", msg, { status });
   return new ProviderError("invalid", "higgsfield", msg, { status });
 }
 
@@ -109,9 +126,19 @@ export class HiggsfieldProvider implements MediaProvider {
     return HIGGSFIELD_MODELS;
   }
   private headers(extra: Record<string, string> = {}) {
-    return { Authorization: `Key ${this.keyId}:${this.keySecret}`, "Content-Type": "application/json", ...extra };
+    return {
+      Authorization: `Key ${this.keyId}:${this.keySecret}`,
+      "Content-Type": "application/json",
+      ...extra,
+    };
   }
-  private async request(method: string, path: string, body?: unknown, extra?: Record<string, string>, mutation = false) {
+  private async request(
+    method: string,
+    path: string,
+    body?: unknown,
+    extra?: Record<string, string>,
+    mutation = false,
+  ) {
     let res: Response;
     try {
       res = await this.fetchImpl(`${this.base}${path}`, {
@@ -121,7 +148,11 @@ export class HiggsfieldProvider implements MediaProvider {
         signal: AbortSignal.timeout(30_000),
       });
     } catch (e) {
-      throw new ProviderError(mutation ? "unknown_outcome" : "transient", "higgsfield", `Network error: ${(e as Error).message}`);
+      throw new ProviderError(
+        mutation ? "unknown_outcome" : "transient",
+        "higgsfield",
+        `Network error: ${(e as Error).message}`,
+      );
     }
     const text = await res.text();
     let json: unknown = null;
@@ -132,7 +163,11 @@ export class HiggsfieldProvider implements MediaProvider {
     }
     if (!res.ok) {
       const d = (json as { detail?: unknown } | null)?.detail;
-      throw mapHiggsfieldError(res.status, typeof d === "string" ? d : JSON.stringify(d ?? text.slice(0, 200)), mutation);
+      throw mapHiggsfieldError(
+        res.status,
+        typeof d === "string" ? d : JSON.stringify(d ?? text.slice(0, 200)),
+        mutation,
+      );
     }
     return { status: res.status, json };
   }
@@ -145,12 +180,25 @@ export class HiggsfieldProvider implements MediaProvider {
       return { credits: null, usd: null };
     }
   }
-  async submit(model: ModelInfo, prompt: string, params: Record<string, unknown>, idempotencyKey: string, webhookUrl?: string) {
+  async submit(
+    model: ModelInfo,
+    prompt: string,
+    params: Record<string, unknown>,
+    idempotencyKey: string,
+    webhookUrl?: string,
+  ) {
     const path = webhookUrl ? `${model.path}?hf_webhook=${encodeURIComponent(webhookUrl)}` : model.path;
     // Idempotency-Key makes an ambiguous timeout safe to retry with identical parameters.
-    const { json } = await this.request("POST", path, { prompt, ...params }, { "Idempotency-Key": idempotencyKey }, true);
+    const { json } = await this.request(
+      "POST",
+      path,
+      { prompt, ...params },
+      { "Idempotency-Key": idempotencyKey },
+      true,
+    );
     const j = json as { request_id?: string; status?: GenStatus };
-    if (!j?.request_id) throw new ProviderError("unknown_outcome", "higgsfield", "Submission response missing request_id");
+    if (!j?.request_id)
+      throw new ProviderError("unknown_outcome", "higgsfield", "Submission response missing request_id");
     return { requestId: j.request_id, status: j.status ?? "queued" };
   }
   async status(requestId: string): Promise<StatusResult> {
@@ -162,7 +210,8 @@ export class HiggsfieldProvider implements MediaProvider {
       await this.request("POST", `/requests/${encodeURIComponent(requestId)}/cancel`);
       return { canceled: true };
     } catch (e) {
-      if (e instanceof ProviderError && e.meta.status === 400) return { canceled: false, reason: "Generation already started and can no longer be canceled" };
+      if (e instanceof ProviderError && e.meta.status === 400)
+        return { canceled: false, reason: "Generation already started and can no longer be canceled" };
       throw e;
     }
   }
@@ -171,7 +220,10 @@ export class HiggsfieldProvider implements MediaProvider {
     if (u.protocol !== "https:") throw new ProviderError("invalid", "higgsfield", "Output URL must be https");
     const res = await this.fetchImpl(u, { signal: AbortSignal.timeout(120_000) });
     if (!res.ok) throw new ProviderError("transient", "higgsfield", `Output download failed (${res.status})`);
-    return { data: Buffer.from(await res.arrayBuffer()), contentType: res.headers.get("content-type") ?? "application/octet-stream" };
+    return {
+      data: Buffer.from(await res.arrayBuffer()),
+      contentType: res.headers.get("content-type") ?? "application/octet-stream",
+    };
   }
 }
 
@@ -182,7 +234,10 @@ export const statusPayloadSchema = z.object({
   images: z.array(z.object({ url: z.url() })).optional(),
   video: z.object({ url: z.url() }).optional(),
   payload: z
-    .object({ images: z.array(z.object({ url: z.url() })).optional(), video: z.object({ url: z.url() }).optional() })
+    .object({
+      images: z.array(z.object({ url: z.url() })).optional(),
+      video: z.object({ url: z.url() }).optional(),
+    })
     .nullable()
     .optional(),
 });
@@ -195,7 +250,10 @@ export function parseStatusPayload(json: unknown): StatusResult {
   return {
     status: p.status,
     error: p.error ?? null,
-    outputs: [...images.map((i) => ({ url: i.url, kind: "image" as const })), ...(video ? [{ url: video.url, kind: "video" as const }] : [])],
+    outputs: [
+      ...images.map((i) => ({ url: i.url, kind: "image" as const })),
+      ...(video ? [{ url: video.url, kind: "video" as const }] : []),
+    ],
   };
 }
 
@@ -206,7 +264,10 @@ export function parseStatusPayload(json: unknown): StatusResult {
  * ("MOCK" stripes). Video models return a storyboard frame image and say so — never a fake video.
  * Prompts containing "[mock:fail]" fail, "[mock:nsfw]" are moderated, "[mock:slow]" never completes.
  */
-const mockState = new Map<string, { polls: number; prompt: string; kind: "image" | "video"; canceled?: boolean }>();
+const mockState = new Map<
+  string,
+  { polls: number; prompt: string; kind: "image" | "video"; canceled?: boolean }
+>();
 
 export class MockMediaProvider implements MediaProvider {
   readonly name = "mock";
@@ -229,7 +290,8 @@ export class MockMediaProvider implements MediaProvider {
     if (st.canceled) return { status: "canceled", outputs: [] };
     if (st.prompt.includes("[mock:slow]")) return { status: "in_progress", outputs: [] };
     if (st.polls < 2) return { status: "in_progress", outputs: [] };
-    if (st.prompt.includes("[mock:fail]")) return { status: "failed", error: "Mock generation failed", outputs: [] };
+    if (st.prompt.includes("[mock:fail]"))
+      return { status: "failed", error: "Mock generation failed", outputs: [] };
     if (st.prompt.includes("[mock:nsfw]")) return { status: "nsfw", outputs: [] };
     return { status: "completed", outputs: [{ url: `mock://${requestId}.png`, kind: "image" }] };
   }
@@ -293,7 +355,8 @@ export function mockPng(width: number, height: number): Buffer {
 
 export function mediaProvider(): MediaProvider | null {
   const e = env();
-  if (e.HIGGSFIELD_API_KEY_ID && e.HIGGSFIELD_API_KEY_SECRET) return new HiggsfieldProvider(e.HIGGSFIELD_API_KEY_ID, e.HIGGSFIELD_API_KEY_SECRET);
+  if (e.HIGGSFIELD_API_KEY_ID && e.HIGGSFIELD_API_KEY_SECRET)
+    return new HiggsfieldProvider(e.HIGGSFIELD_API_KEY_ID, e.HIGGSFIELD_API_KEY_SECRET);
   if (e.mocksAllowed) return new MockMediaProvider();
   return null;
 }

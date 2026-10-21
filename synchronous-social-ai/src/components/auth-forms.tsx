@@ -65,9 +65,9 @@ export function LoginForm() {
       <Button type="submit" variant="primary" className="w-full justify-center" loading={busy}>
         Sign in
       </Button>
-      <p className="text-center text-[13px] text-fg-muted">
+      <p className="text-fg-muted text-center text-[13px]">
         New to Synchronous?{" "}
-        <Link href="/signup" className="font-medium text-brand-600 hover:underline">
+        <Link href="/signup" className="text-brand-600 font-medium hover:underline">
           Create a workspace
         </Link>
       </p>
@@ -85,7 +85,15 @@ export function SignupForm() {
         e.preventDefault();
         const f = new FormData(e.currentTarget);
         void run(async () => {
-          await api("/auth/signup", { body: { name: f.get("name"), email: f.get("email"), password: f.get("password"), workspaceName: f.get("workspaceName"), timezone: tz } });
+          await api("/auth/signup", {
+            body: {
+              name: f.get("name"),
+              email: f.get("email"),
+              password: f.get("password"),
+              workspaceName: f.get("workspaceName"),
+              timezone: tz,
+            },
+          });
           router.push("/brain?onboarding=1");
           router.refresh();
         });
@@ -100,18 +108,25 @@ export function SignupForm() {
         <Input id="email" name="email" type="email" autoComplete="email" required />
       </Field>
       <Field label="Password" htmlFor="password" hint="At least 12 characters.">
-        <Input id="password" name="password" type="password" autoComplete="new-password" minLength={12} required />
+        <Input
+          id="password"
+          name="password"
+          type="password"
+          autoComplete="new-password"
+          minLength={12}
+          required
+        />
       </Field>
       <Field label="Company / workspace name" htmlFor="workspaceName">
         <Input id="workspaceName" name="workspaceName" required minLength={2} />
       </Field>
-      <p className="text-[12px] text-fg-subtle">Timezone detected: {tz}. You can change it in Settings.</p>
+      <p className="text-fg-subtle text-[12px]">Timezone detected: {tz}. You can change it in Settings.</p>
       <Button type="submit" variant="primary" className="w-full justify-center" loading={busy}>
         Create workspace
       </Button>
-      <p className="text-center text-[13px] text-fg-muted">
+      <p className="text-fg-muted text-center text-[13px]">
         Already have an account?{" "}
-        <Link href="/login" className="font-medium text-brand-600 hover:underline">
+        <Link href="/login" className="text-brand-600 font-medium hover:underline">
           Sign in
         </Link>
       </p>
@@ -128,7 +143,9 @@ export function AcceptInviteForm({ token, signedIn }: { token: string; signedIn:
         e.preventDefault();
         const f = new FormData(e.currentTarget);
         void run(async () => {
-          await api("/invitations/accept", { body: signedIn ? { token } : { token, name: f.get("name"), password: f.get("password") } });
+          await api("/invitations/accept", {
+            body: signedIn ? { token } : { token, name: f.get("name"), password: f.get("password") },
+          });
           router.push("/overview");
           router.refresh();
         });
@@ -141,7 +158,11 @@ export function AcceptInviteForm({ token, signedIn }: { token: string; signedIn:
           <Field label="Your name" htmlFor="name">
             <Input id="name" name="name" required />
           </Field>
-          <Field label="Choose a password" htmlFor="password" hint="At least 12 characters. If you already have an account, sign in first.">
+          <Field
+            label="Choose a password"
+            htmlFor="password"
+            hint="At least 12 characters. If you already have an account, sign in first."
+          >
             <Input id="password" name="password" type="password" minLength={12} required />
           </Field>
         </>
@@ -162,7 +183,9 @@ export function NewWorkspaceForm() {
         e.preventDefault();
         const f = new FormData(e.currentTarget);
         void run(async () => {
-          await api("/workspaces", { body: { name: f.get("name"), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone } });
+          await api("/workspaces", {
+            body: { name: f.get("name"), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone },
+          });
           router.push("/brain?onboarding=1");
           router.refresh();
         });

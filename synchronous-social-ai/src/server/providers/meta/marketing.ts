@@ -11,9 +11,21 @@ import { graphCall } from "./graph";
 
 export const ADS_SCOPES = ["ads_management", "ads_read", "business_management", "pages_show_list"] as const;
 
-export const OBJECTIVES = ["OUTCOME_AWARENESS", "OUTCOME_TRAFFIC", "OUTCOME_ENGAGEMENT", "OUTCOME_LEADS", "OUTCOME_SALES"] as const;
+export const OBJECTIVES = [
+  "OUTCOME_AWARENESS",
+  "OUTCOME_TRAFFIC",
+  "OUTCOME_ENGAGEMENT",
+  "OUTCOME_LEADS",
+  "OUTCOME_SALES",
+] as const;
 export type Objective = (typeof OBJECTIVES)[number];
-export const SPECIAL_AD_CATEGORIES = ["NONE", "HOUSING", "EMPLOYMENT", "FINANCIAL_PRODUCTS_SERVICES", "ISSUES_ELECTIONS_POLITICS"] as const;
+export const SPECIAL_AD_CATEGORIES = [
+  "NONE",
+  "HOUSING",
+  "EMPLOYMENT",
+  "FINANCIAL_PRODUCTS_SERVICES",
+  "ISSUES_ELECTIONS_POLITICS",
+] as const;
 
 export interface AdAccountInfo {
   id: string; // act_<id>
@@ -58,7 +70,9 @@ export interface MetaAdsAdapter {
   createCreative(spec: CreativeSpec): Promise<{ id: string }>;
   createAd(name: string, adSetId: string, creativeId: string): Promise<{ id: string }>;
   setStatus(objectId: string, status: "ACTIVE" | "PAUSED"): Promise<void>;
-  getObject(objectId: string): Promise<{ id: string; status?: string; effective_status?: string; name?: string }>;
+  getObject(
+    objectId: string,
+  ): Promise<{ id: string; status?: string; effective_status?: string; name?: string }>;
   findCampaignByName(name: string): Promise<{ id: string; status?: string } | null>;
   getInsights(campaignId: string, since: string, until: string): Promise<AdInsights | null>;
 }
@@ -96,14 +110,41 @@ export class LiveMetaAdsAdapter implements MetaAdsAdapter {
   private base() {
     return `https://graph.facebook.com/${env().META_GRAPH_VERSION}`;
   }
-  private call<T>(method: "GET" | "POST", path: string, params?: Record<string, string | number | boolean | undefined>, mutation = false) {
-    return graphCall<T>({ method, url: `${this.base()}${path}`, token: this.token, params, mutation, fetchImpl: this.fetchImpl }, "meta_ads");
+  private call<T>(
+    method: "GET" | "POST",
+    path: string,
+    params?: Record<string, string | number | boolean | undefined>,
+    mutation = false,
+  ) {
+    return graphCall<T>(
+      {
+        method,
+        url: `${this.base()}${path}`,
+        token: this.token,
+        params,
+        mutation,
+        fetchImpl: this.fetchImpl,
+      },
+      "meta_ads",
+    );
   }
   async getAdAccount() {
-    const r = await this.call<{ id: string; name: string; currency: string; account_status: number; disable_reason?: number }>("GET", `/${this.adAccountId}`, {
+    const r = await this.call<{
+      id: string;
+      name: string;
+      currency: string;
+      account_status: number;
+      disable_reason?: number;
+    }>("GET", `/${this.adAccountId}`, {
       fields: "id,name,currency,account_status,disable_reason",
     });
-    return { id: r.id, name: r.name, currency: r.currency, accountStatus: r.account_status, disableReason: r.disable_reason };
+    return {
+      id: r.id,
+      name: r.name,
+      currency: r.currency,
+      accountStatus: r.account_status,
+      disableReason: r.disable_reason,
+    };
   }
   createCampaign(spec: CampaignSpec) {
     return this.call<{ id: string }>(
@@ -169,19 +210,31 @@ export class LiveMetaAdsAdapter implements MetaAdsAdapter {
   }
   async setStatus(objectId: string, status: "ACTIVE" | "PAUSED") {
     if (status === "ACTIVE" && env().META_ADS_TEST_MODE) {
-      throw new ProviderError("policy", "meta_ads", "META_ADS_TEST_MODE is on: activation (real spend) is disabled");
+      throw new ProviderError(
+        "policy",
+        "meta_ads",
+        "META_ADS_TEST_MODE is on: activation (real spend) is disabled",
+      );
     }
     await this.call("POST", `/${objectId}`, { status }, true);
   }
   getObject(objectId: string) {
-    return this.call<{ id: string; status?: string; effective_status?: string; name?: string }>("GET", `/${objectId}`, { fields: "id,name,status,effective_status" });
+    return this.call<{ id: string; status?: string; effective_status?: string; name?: string }>(
+      "GET",
+      `/${objectId}`,
+      { fields: "id,name,status,effective_status" },
+    );
   }
   async findCampaignByName(name: string) {
-    const r = await this.call<{ data: Array<{ id: string; name: string; status?: string }> }>("GET", `/${this.adAccountId}/campaigns`, {
-      fields: "id,name,status",
-      filtering: JSON.stringify([{ field: "name", operator: "EQUAL", value: name }]),
-      limit: 5,
-    });
+    const r = await this.call<{ data: Array<{ id: string; name: string; status?: string }> }>(
+      "GET",
+      `/${this.adAccountId}/campaigns`,
+      {
+        fields: "id,name,status",
+        filtering: JSON.stringify([{ field: "name", operator: "EQUAL", value: name }]),
+        limit: 5,
+      },
+    );
     const hit = r.data?.find((c) => c.name === name);
     return hit ? { id: hit.id, status: hit.status } : null;
   }
@@ -194,7 +247,9 @@ export class LiveMetaAdsAdapter implements MetaAdsAdapter {
     if (!d) return null;
     const num = (v: unknown) => (v === undefined || v === null || v === "" ? null : Number(v));
     const actions = (d.actions as Array<{ action_type: string; value: string }> | undefined) ?? [];
-    const purchase = actions.find((a) => a.action_type === "offsite_conversion.fb_pixel_purchase" || a.action_type === "purchase");
+    const purchase = actions.find(
+      (a) => a.action_type === "offsite_conversion.fb_pixel_purchase" || a.action_type === "purchase",
+    );
     return {
       dateStart: String(d.date_start),
       dateStop: String(d.date_stop),
@@ -210,12 +265,21 @@ export class LiveMetaAdsAdapter implements MetaAdsAdapter {
 /** Development mock: returns IDs but never metrics (no fabricated performance). */
 export class MockMetaAdsAdapter implements MetaAdsAdapter {
   readonly mode = "mock" as const;
-  constructor(private readonly adAccountId: string, private readonly currency = "USD") {}
+  constructor(
+    private readonly adAccountId: string,
+    private readonly currency = "USD",
+  ) {}
   async getAdAccount() {
-    return { id: this.adAccountId, name: "Mock Ad Account (development)", currency: this.currency, accountStatus: 1 };
+    return {
+      id: this.adAccountId,
+      name: "Mock Ad Account (development)",
+      currency: this.currency,
+      accountStatus: 1,
+    };
   }
   async createCampaign(spec: CampaignSpec) {
-    if (spec.name.includes("[mock:fail]")) throw new ProviderError("transient", "meta_ads", "Mock transient failure");
+    if (spec.name.includes("[mock:fail]"))
+      throw new ProviderError("transient", "meta_ads", "Mock transient failure");
     return { id: `mock_campaign_${randomUUID()}` };
   }
   async createAdSet() {
@@ -249,7 +313,11 @@ export function facebookAuthorizeUrl(state: string, redirectUri: string) {
   return u.toString();
 }
 
-export async function exchangeFacebookCode(code: string, redirectUri: string, fetchImpl: typeof fetch = fetch) {
+export async function exchangeFacebookCode(
+  code: string,
+  redirectUri: string,
+  fetchImpl: typeof fetch = fetch,
+) {
   const e = env();
   const u = new URL(`https://graph.facebook.com/${e.META_GRAPH_VERSION}/oauth/access_token`);
   u.searchParams.set("client_id", e.META_APP_ID ?? "");
@@ -258,7 +326,8 @@ export async function exchangeFacebookCode(code: string, redirectUri: string, fe
   u.searchParams.set("code", code);
   const res = await fetchImpl(u, { signal: AbortSignal.timeout(20_000) });
   const json = (await res.json().catch(() => ({}))) as { access_token?: string; expires_in?: number };
-  if (!res.ok || !json.access_token) throw new ProviderError("auth", "meta_ads", `Code exchange failed (${res.status})`);
+  if (!res.ok || !json.access_token)
+    throw new ProviderError("auth", "meta_ads", `Code exchange failed (${res.status})`);
   const ll = new URL(`https://graph.facebook.com/${e.META_GRAPH_VERSION}/oauth/access_token`);
   ll.searchParams.set("grant_type", "fb_exchange_token");
   ll.searchParams.set("client_id", e.META_APP_ID ?? "");
@@ -268,11 +337,24 @@ export async function exchangeFacebookCode(code: string, redirectUri: string, fe
   const llJson = (await llRes.json().catch(() => ({}))) as { access_token?: string; expires_in?: number };
   const token = llJson.access_token ?? json.access_token;
   const perms = await graphCall<{ data: Array<{ permission: string; status: string }> }>(
-    { method: "GET", url: `https://graph.facebook.com/${e.META_GRAPH_VERSION}/me/permissions`, token, fetchImpl },
+    {
+      method: "GET",
+      url: `https://graph.facebook.com/${e.META_GRAPH_VERSION}/me/permissions`,
+      token,
+      fetchImpl,
+    },
     "meta_ads",
   );
-  const accounts = await graphCall<{ data: Array<{ id: string; name: string; currency: string; account_status: number }> }>(
-    { method: "GET", url: `https://graph.facebook.com/${e.META_GRAPH_VERSION}/me/adaccounts`, token, params: { fields: "id,name,currency,account_status", limit: 50 }, fetchImpl },
+  const accounts = await graphCall<{
+    data: Array<{ id: string; name: string; currency: string; account_status: number }>;
+  }>(
+    {
+      method: "GET",
+      url: `https://graph.facebook.com/${e.META_GRAPH_VERSION}/me/adaccounts`,
+      token,
+      params: { fields: "id,name,currency,account_status", limit: 50 },
+      fetchImpl,
+    },
     "meta_ads",
   );
   return {

@@ -6,7 +6,11 @@ import { withSystem } from "@/server/db/tenant";
 import { env } from "@/server/env";
 import { logger } from "@/server/lib/logger";
 import { isProviderError } from "@/server/providers/errors";
-import { completeInstagramOAuth, completeMetaAdsOAuth, consumeOAuthState } from "@/server/services/integrations";
+import {
+  completeInstagramOAuth,
+  completeMetaAdsOAuth,
+  consumeOAuthState,
+} from "@/server/services/integrations";
 import { isAppError } from "@/server/lib/errors";
 
 /** OAuth redirect target. Validates single-use state bound to the signed-in user, then exchanges the code server-side. */
@@ -15,7 +19,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prov
   const back = (q: string) => NextResponse.redirect(new URL(`/integrations?${q}`, env().APP_URL));
   if (!provider.success) return back("error=unknown_provider");
   const sp = req.nextUrl.searchParams;
-  if (sp.get("error")) return back(`error=${encodeURIComponent(sp.get("error_reason") ?? sp.get("error") ?? "denied")}`);
+  if (sp.get("error"))
+    return back(`error=${encodeURIComponent(sp.get("error_reason") ?? sp.get("error") ?? "denied")}`);
   const code = sp.get("code");
   const state = sp.get("state");
   if (!code || !state) return back("error=missing_code");

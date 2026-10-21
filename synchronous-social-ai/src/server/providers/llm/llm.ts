@@ -71,23 +71,45 @@ export class OpenAICompatibleProvider implements LlmProvider {
           messages: req.messages,
           max_tokens: req.maxTokens,
           temperature: req.temperature ?? 0.4,
-          response_format: { type: "json_schema", json_schema: { name: req.schemaName, strict: false, schema: req.jsonSchema } },
+          response_format: {
+            type: "json_schema",
+            json_schema: { name: req.schemaName, strict: true, schema: toStrictSchema(req.jsonSchema) },
+          },
         }),
         signal: req.signal ?? AbortSignal.timeout(req.timeoutMs ?? env().LLM_TIMEOUT_MS),
       });
     } catch (e) {
       const aborted = (e as Error).name === "AbortError" || (e as Error).name === "TimeoutError";
-      throw new ProviderError("transient", "llm", aborted ? "LLM request timed out" : `LLM network error: ${(e as Error).message}`);
+      throw new ProviderError(
+        "transient",
+        "llm",
+        aborted ? "LLM request timed out" : `LLM network error: ${(e as Error).message}`,
+      );
     }
     const json = (await res.json().catch(() => ({}))) as {
-      choices?: Array<{ message?: { content?: string | null; refusal?: string | null }; finish_reason?: string }>;
+      choices?: Array<{
+        message?: { content?: string | null; refusal?: string | null };
+        finish_reason?: string;
+      }>;
       usage?: { prompt_tokens?: number; completion_tokens?: number; cost?: number };
       model?: string;
       error?: { message?: string };
     };
     if (!res.ok) {
-      const kind = res.status === 401 || res.status === 403 ? "auth" : res.status === 429 ? "rate_limit" : res.status >= 500 ? "transient" : "invalid";
-      throw new ProviderError(kind, "llm", `LLM HTTP ${res.status}: ${json.error?.message ?? ""}`.slice(0, 300), { status: res.status });
+      const kind =
+        res.status === 401 || res.status === 403
+          ? "auth"
+          : res.status === 429
+            ? "rate_limit"
+            : res.status >= 500
+              ? "transient"
+              : "invalid";
+      throw new ProviderError(
+        kind,
+        "llm",
+        `LLM HTTP ${res.status}: ${json.error?.message ?? ""}`.slice(0, 300),
+        { status: res.status },
+      );
     }
     const choice = json.choices?.[0];
     if (choice?.message?.refusal) throw new ProviderError("policy", "llm", "Model refused the request");
@@ -96,8 +118,21 @@ export class OpenAICompatibleProvider implements LlmProvider {
     const tokensOut = json.usage?.completion_tokens ?? 0;
     const price = PRICES[req.model];
     const reported = typeof json.usage?.cost === "number";
-    const costUsd = reported ? json.usage!.cost! : price ? (tokensIn * price[0] + tokensOut * price[1]) / 1e6 : 0;
-    return { content, model: json.model ?? req.model, provider: this.name, tokensIn, tokensOut, costUsd, costEstimated: !reported, latencyMs: Date.now() - started };
+    const costUsd = reported
+      ? json.usage!.cost!
+      : price
+        ? (tokensIn * price[0] + tokensOut * price[1]) / 1e6
+        : 0;
+    return {
+      content,
+      model: json.model ?? req.model,
+      provider: this.name,
+      tokensIn,
+      tokensOut,
+      costUsd,
+      costEstimated: !reported,
+      latencyMs: Date.now() - started,
+    };
   }
 }
 
@@ -108,7 +143,16 @@ export class MockLlmProvider implements LlmProvider {
   constructor(private readonly respond: (req: LlmRequest) => unknown) {}
   async complete(req: LlmRequest): Promise<LlmResponse> {
     const out = this.respond(req);
-    return { content: JSON.stringify(out), model: "mock-deterministic", provider: "mock", tokensIn: 0, tokensOut: 0, costUsd: 0, costEstimated: false, latencyMs: 1 };
+    return {
+      content: JSON.stringify(out),
+      model: "mock-deterministic",
+      provider: "mock",
+      tokensIn: 0,
+      tokensOut: 0,
+      costUsd: 0,
+      costEstimated: false,
+      latencyMs: 1,
+    };
   }
 }
 
@@ -116,4 +160,34 @@ export function liveLlmProvider(): LlmProvider | null {
   const e = env();
   if (!e.LLM_API_KEY) return null;
   return new OpenAICompatibleProvider(new URL(e.LLM_BASE_URL).hostname, e.LLM_BASE_URL, e.LLM_API_KEY);
+}
+
+const KEEP = new Set(["type", "properties", "items", "enum", "anyOf", "required", "additionalProperties", "description", "const"]);
+
+/**
+ * Convert a JSON Schema into the strict subset accepted by structured-output providers: every object
+ * closes `additionalProperties` and lists all properties as required; numeric/string constraints and
+ * defaults are removed (zod re-validates the full constraints after the call).
+ */
+export function toStrictSchema(schema: unknown): Record<string, unknown> {
+  const walk = (node: unknown): unknown => {
+    if (Array.isArray(node)) return node.map(walk);
+    if (!node || typeof node !== "object") return node;
+    const n = node as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(n)) {
+      if (!KEEP.has(k)) continue;
+      if (k === "properties") out[k] = Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([pk, pv]) => [pk, walk(pv)]));
+      else if (k === "items" || k === "anyOf") out[k] = walk(v);
+      else out[k] = v;
+    }
+    if (out.type === "object" || out.properties) {
+      out.type = "object";
+      out.properties = out.properties ?? {};
+      out.required = Object.keys(out.properties as object);
+      out.additionalProperties = false;
+    }
+    return out;
+  };
+  return walk(schema) as Record<string, unknown>;
 }

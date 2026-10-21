@@ -31,7 +31,8 @@ export function registerJob(type: string, handler: JobHandler) {
 export const getJobHandler = (type: string) => registry.get(type);
 export const registeredJobTypes = () => [...registry.keys()];
 export const externalJobTypes = () => [...registry.entries()].filter(([, h]) => h.external).map(([t]) => t);
-export const uncertainJobTypes = () => [...registry.entries()].filter(([, h]) => h.uncertainOnCrash).map(([t]) => t);
+export const uncertainJobTypes = () =>
+  [...registry.entries()].filter(([, h]) => h.uncertainOnCrash).map(([t]) => t);
 
 export function workerCtx(workspaceId: string, tx: Tx, correlationId: string, log: Logger): Ctx {
   return {

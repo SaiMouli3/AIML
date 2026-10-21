@@ -62,7 +62,13 @@ export function errorResponse(e: unknown, correlationId: string) {
   }
   createLogger({ correlationId }).error("unhandled_error", { error: e });
   return NextResponse.json(
-    { error: { code: "INTERNAL", message: "Something went wrong. Reference the correlation ID when reporting." }, correlationId },
+    {
+      error: {
+        code: "INTERNAL",
+        message: "Something went wrong. Reference the correlation ID when reporting.",
+      },
+      correlationId,
+    },
     { status: 500, headers: { "x-correlation-id": correlationId } },
   );
 }
@@ -75,7 +81,8 @@ function checkCsrf(req: NextRequest) {
   if (origin) {
     const allowed = new URL(env().APP_URL).origin;
     const self = req.nextUrl.origin;
-    if (origin !== allowed && origin !== self) throw new AppError("CSRF_FAILED", "Cross-origin request rejected");
+    if (origin !== allowed && origin !== self)
+      throw new AppError("CSRF_FAILED", "Cross-origin request rejected");
   }
 }
 
@@ -97,15 +104,24 @@ export function route<B extends ZodType | undefined = undefined, Q extends ZodTy
 
       let session: SessionInfo | null = null;
       if (authMode !== "none") {
-        session = await resolveSession(req.cookies.get(sessionCookieName())?.value, req.headers.get("x-workspace-id"));
+        session = await resolveSession(
+          req.cookies.get(sessionCookieName())?.value,
+          req.headers.get("x-workspace-id"),
+        );
         if (!session) throw new AppError("UNAUTHENTICATED", "Sign in required");
       }
 
       const ip = clientIp(req);
       if (opts.rateLimit) {
-        await consumeRateLimit(db(), `api:${req.nextUrl.pathname}:${session?.user.id ?? ip ?? "anon"}`, opts.rateLimit, 60, {
-          throwOnLimit: true,
-        });
+        await consumeRateLimit(
+          db(),
+          `api:${req.nextUrl.pathname}:${session?.user.id ?? ip ?? "anon"}`,
+          opts.rateLimit,
+          60,
+          {
+            throwOnLimit: true,
+          },
+        );
       }
 
       const query = opts.query
@@ -123,7 +139,15 @@ export function route<B extends ZodType | undefined = undefined, Q extends ZodTy
       }
 
       const run = async (ctx: Ctx) => {
-        const result = await handler({ req, params, body: body as Infer<B>, query: query as Infer<Q>, ctx, session, correlationId });
+        const result = await handler({
+          req,
+          params,
+          body: body as Infer<B>,
+          query: query as Infer<Q>,
+          ctx,
+          session,
+          correlationId,
+        });
         if (result instanceof Response) {
           result.headers.set("x-correlation-id", correlationId);
           return result;

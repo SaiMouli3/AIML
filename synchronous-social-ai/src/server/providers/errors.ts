@@ -17,7 +17,13 @@ export class ProviderError extends Error {
     readonly kind: ProviderErrorKind,
     readonly provider: string,
     message: string,
-    readonly meta: { status?: number; code?: number | string; subcode?: number; traceId?: string; retryAfterMs?: number } = {},
+    readonly meta: {
+      status?: number;
+      code?: number | string;
+      subcode?: number;
+      traceId?: string;
+      retryAfterMs?: number;
+    } = {},
   ) {
     super(message);
     this.name = "ProviderError";

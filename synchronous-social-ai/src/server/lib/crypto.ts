@@ -1,4 +1,11 @@
-import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  createHmac,
+  randomBytes,
+  timingSafeEqual,
+} from "node:crypto";
 import { env } from "../env";
 
 export const randomToken = (bytes = 32) => randomBytes(bytes).toString("base64url");
@@ -17,7 +24,12 @@ export function encryptSecret(plain: string): string {
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", env().encryptionKey, iv);
   const ct = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]);
-  return ["v1", iv.toString("base64url"), cipher.getAuthTag().toString("base64url"), ct.toString("base64url")].join(".");
+  return [
+    "v1",
+    iv.toString("base64url"),
+    cipher.getAuthTag().toString("base64url"),
+    ct.toString("base64url"),
+  ].join(".");
 }
 
 export function decryptSecret(blob: string): string {

@@ -52,11 +52,19 @@ describe("prompt injection", () => {
 
 describe("hashing & redaction", () => {
   it("canonical JSON is key-order independent", () => {
-    expect(canonicalJson({ b: 1, a: [1, { d: 2, c: 3 }] })).toBe(canonicalJson({ a: [1, { c: 3, d: 2 }], b: 1 }));
+    expect(canonicalJson({ b: 1, a: [1, { d: 2, c: 3 }] })).toBe(
+      canonicalJson({ a: [1, { c: 3, d: 2 }], b: 1 }),
+    );
     expect(hashPayload({ x: 1 })).not.toBe(hashPayload({ x: 2 }));
   });
   it("redacts secrets, tokens, emails and signed URL parameters", () => {
-    const r = JSON.stringify(redact({ accessToken: "abc", note: "Bearer EAAB1234567890abcdefghijkl mail a@b.com https://x.com/f?sig=deadbeef&exp=1", nested: { password: "p" } }));
+    const r = JSON.stringify(
+      redact({
+        accessToken: "abc",
+        note: "Bearer EAAB1234567890abcdefghijkl mail a@b.com https://x.com/f?sig=deadbeef&exp=1",
+        nested: { password: "p" },
+      }),
+    );
     expect(r).not.toMatch(/EAAB1234|a@b\.com|deadbeef|"p"/);
     expect(r).toMatch(/\[REDACTED\]/);
   });

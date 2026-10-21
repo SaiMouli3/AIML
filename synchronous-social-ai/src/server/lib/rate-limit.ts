@@ -24,7 +24,9 @@ export async function consumeRateLimit(
   const resetAt = new Date(windowStart.getTime() + windowSeconds * 1000);
   const allowed = count <= limit;
   if (!allowed && opts.throwOnLimit) {
-    throw new AppError("RATE_LIMITED", "Too many requests. Try again later.", { resetAt: resetAt.toISOString() });
+    throw new AppError("RATE_LIMITED", "Too many requests. Try again later.", {
+      resetAt: resetAt.toISOString(),
+    });
   }
   return { allowed, remaining: Math.max(0, limit - count), resetAt };
 }

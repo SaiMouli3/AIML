@@ -22,8 +22,17 @@ export type DetectedType =
 
 export function sniff(buf: Buffer): DetectedType | null {
   if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return "image/jpeg";
-  if (buf.length >= 8 && buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return "image/png";
-  if (buf.length >= 12 && buf.subarray(0, 4).toString("ascii") === "RIFF" && buf.subarray(8, 12).toString("ascii") === "WEBP") return "image/webp";
+  if (
+    buf.length >= 8 &&
+    buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+  )
+    return "image/png";
+  if (
+    buf.length >= 12 &&
+    buf.subarray(0, 4).toString("ascii") === "RIFF" &&
+    buf.subarray(8, 12).toString("ascii") === "WEBP"
+  )
+    return "image/webp";
   if (buf.length >= 6 && /^GIF8[79]a$/.test(buf.subarray(0, 6).toString("ascii"))) return "image/gif";
   if (buf.length >= 12 && buf.subarray(4, 8).toString("ascii") === "ftyp") {
     const brand = buf.subarray(8, 12).toString("ascii");
@@ -59,7 +68,11 @@ export interface ValidatedFile {
   reason?: string;
 }
 
-export function validateUpload(buf: Buffer, declaredType: string, purpose: "media" | "knowledge"): ValidatedFile {
+export function validateUpload(
+  buf: Buffer,
+  declaredType: string,
+  purpose: "media" | "knowledge",
+): ValidatedFile {
   if (buf.length === 0) return { ok: false, reason: "File is empty" };
   const detected = sniff(buf);
   const declared = declaredType.split(";")[0]!.trim().toLowerCase();
@@ -79,13 +92,15 @@ export function validateUpload(buf: Buffer, declaredType: string, purpose: "medi
   if (detected === "application/pdf") return { ok: true, type: detected, kind: "document" };
   if (detected) return { ok: false, reason: "Images and video belong in the Media Library" };
   const textType = TEXT_TYPES[declared] ?? "text/plain";
-  if (!isText(buf)) return { ok: false, reason: "Unsupported document type. Upload PDF, TXT, Markdown, CSV, JSON or HTML." };
+  if (!isText(buf))
+    return { ok: false, reason: "Unsupported document type. Upload PDF, TXT, Markdown, CSV, JSON or HTML." };
   return { ok: true, type: textType, kind: "document" };
 }
 
 /** Read image dimensions for JPEG/PNG without external dependencies. */
 export function imageDimensions(buf: Buffer, type: string): { width: number; height: number } | null {
-  if (type === "image/png" && buf.length >= 24) return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
+  if (type === "image/png" && buf.length >= 24)
+    return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
   if (type === "image/jpeg") {
     let i = 2;
     while (i + 9 < buf.length) {
@@ -108,7 +123,8 @@ export interface MalwareScanner {
 export const malwareScanner: MalwareScanner = {
   async scan(buf) {
     // EICAR test signature: lets tests verify the quarantine path without a real scanner.
-    if (buf.includes(Buffer.from("EICAR-STANDARD-ANTIVIRUS-TEST-FILE"))) return { status: "infected", detail: "EICAR test signature" };
+    if (buf.includes(Buffer.from("EICAR-STANDARD-ANTIVIRUS-TEST-FILE")))
+      return { status: "infected", detail: "EICAR test signature" };
     return { status: "not_scanned" };
   },
 };
