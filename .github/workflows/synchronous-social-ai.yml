@@ -1,0 +1,61 @@
+name: Synchronous Social AI
+
+on:
+  push:
+    branches: [main]
+    paths: ["synchronous-social-ai/**", ".github/workflows/synchronous-social-ai.yml"]
+  pull_request:
+    paths: ["synchronous-social-ai/**", ".github/workflows/synchronous-social-ai.yml"]
+
+defaults:
+  run:
+    working-directory: synchronous-social-ai
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGPASSWORD: postgres
+      TEST_DATABASE_URL: postgres://sync:sync@localhost:5432/sync_test
+      E2E_DATABASE_URL: postgres://sync:sync@localhost:5432/sync_e2e
+      DATABASE_URL: postgres://sync:sync@localhost:5432/sync_e2e
+      APP_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: synchronous-social-ai/package-lock.json
+      - name: Create non-superuser app role (row-level security must apply)
+        run: |
+          psql -h localhost -U postgres -c "CREATE ROLE sync LOGIN PASSWORD 'sync' NOSUPERUSER CREATEDB;"
+          psql -h localhost -U postgres -c "CREATE DATABASE sync_test OWNER sync;"
+          psql -h localhost -U postgres -c "CREATE DATABASE sync_e2e OWNER sync;"
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run format:check
+      - name: Unit, integration, security and contract tests
+        run: npm test
+      - name: Build
+        run: npm run build
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: End-to-end tests (mock providers, no real spend)
+        run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: synchronous-social-ai/test-results

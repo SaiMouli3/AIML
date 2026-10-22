@@ -1,0 +1,7 @@
+.next
+node_modules
+drizzle/meta
+playwright-report
+test-results
+.data
+package-lock.json

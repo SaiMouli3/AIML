@@ -1,0 +1,1 @@
+ALTER TABLE "oauth_states" ADD COLUMN "encrypted_code_verifier" text;
