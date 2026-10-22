@@ -96,3 +96,16 @@ describe("upload validation", () => {
     expect(validateUpload(Buffer.from([0, 1, 2, 3, 255]), "text/plain", "knowledge").ok).toBe(false);
   });
 });
+
+describe("S3 uploads", () => {
+  it("request AES256 server-side encryption from AWS only, not from R2-style endpoints", async () => {
+    const { putObjectExtras } = await import("@/server/providers/storage/storage");
+    expect(putObjectExtras("image/jpeg", undefined)).toEqual({
+      ContentType: "image/jpeg",
+      ServerSideEncryption: "AES256",
+    });
+    expect(putObjectExtras("image/jpeg", "https://acc.r2.cloudflarestorage.com")).toEqual({
+      ContentType: "image/jpeg",
+    });
+  });
+});

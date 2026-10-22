@@ -59,6 +59,16 @@ class LocalStorage implements ObjectStorage {
   }
 }
 
+/**
+ * Extra PutObject parameters. SSE-S3 (AES256) is requested from AWS only: S3-compatible stores such as
+ * Cloudflare R2 reject the x-amz-server-side-encryption header and already encrypt every object at rest.
+ */
+export function putObjectExtras(contentType: string, endpoint = env().S3_ENDPOINT) {
+  return endpoint
+    ? { ContentType: contentType }
+    : { ContentType: contentType, ServerSideEncryption: "AES256" as const };
+}
+
 class S3Storage implements ObjectStorage {
   private async client() {
     const { S3Client } = await import("@aws-sdk/client-s3");
@@ -83,13 +93,7 @@ class S3Storage implements ObjectStorage {
     await (
       await this.client()
     ).send(
-      new PutObjectCommand({
-        Bucket: this.bucket(),
-        Key: key,
-        Body: data,
-        ContentType: contentType,
-        ServerSideEncryption: "AES256",
-      }),
+      new PutObjectCommand({ Bucket: this.bucket(), Key: key, Body: data, ...putObjectExtras(contentType) }),
     );
   }
   async get(key: string) {
