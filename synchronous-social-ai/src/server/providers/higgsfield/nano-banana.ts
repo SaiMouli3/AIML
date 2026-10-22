@@ -9,12 +9,21 @@ import type { MediaProvider, ModelInfo, StatusResult, SubmitResult } from "./hig
  * Generation is synchronous, so submit() does the work and status()/download() serve the result.
  */
 
-// ponytail: outputs are held in process memory. A worker restart between submit and download fails that job;
-// move outputs to tenant storage if that happens often.
+// Outputs are held in worker-process memory between submit and download. They must outlive the provider
+// object: mediaProvider() returns a new instance on every call, and the media job reschedules between
+// submit and status. A worker restart in that window fails the job; move outputs to tenant storage if
+// that happens often. Unclaimed outputs are dropped after OUTPUT_TTL_MS.
 const GATEWAY_MODEL = "gemini-2.5-flash-image";
 const EST_USD_PER_IMAGE = 0.04;
 const TIMEOUT_MS = 120_000;
 const URL_PREFIX = "nano-banana://";
+const OUTPUT_TTL_MS = 60 * 60_000;
+
+const outputs = new Map<string, { data: Buffer; contentType: string; at: number }>();
+
+function pruneOutputs(now = Date.now()) {
+  for (const [id, o] of outputs) if (now - o.at > OUTPUT_TTL_MS) outputs.delete(id);
+}
 
 export const NANO_BANANA_MODEL: ModelInfo = {
   id: "nano-banana",
@@ -22,9 +31,7 @@ export const NANO_BANANA_MODEL: ModelInfo = {
   kind: "image",
   path: "",
   docs: "https://ai.google.dev/gemini-api/docs/image-generation",
-  params: z
-    .object({ aspect_ratio: z.enum(["1:1", "4:5", "9:16", "16:9", "3:4"]).optional() })
-    .strict(),
+  params: z.object({ aspect_ratio: z.enum(["1:1", "4:5", "9:16", "16:9", "3:4"]).optional() }).strict(),
   defaultParams: { aspect_ratio: "4:5" },
 };
 
@@ -40,7 +47,6 @@ function mapStatusError(status: number, detail: string): ProviderError {
 export class NanoBananaProvider implements MediaProvider {
   readonly name = "nano-banana";
   readonly mode = "live" as const;
-  private outputs = new Map<string, Buffer>();
 
   constructor(
     private baseUrl: string,
@@ -70,7 +76,11 @@ export class NanoBananaProvider implements MediaProvider {
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
     } catch (err) {
-      throw new ProviderError("unknown_outcome", "nano-banana", `Gateway request failed: ${String(err)}`.slice(0, 400));
+      throw new ProviderError(
+        "unknown_outcome",
+        "nano-banana",
+        `Gateway request failed: ${String(err)}`.slice(0, 400),
+      );
     }
     if (!res.ok) throw mapStatusError(res.status, (await res.text()).slice(0, 300));
 
@@ -79,15 +89,21 @@ export class NanoBananaProvider implements MediaProvider {
     };
     const dataUrl = body.choices?.[0]?.message?.images?.[0]?.image_url?.url ?? "";
     const match = /^data:(image\/[a-z+]+);base64,(.+)$/s.exec(dataUrl);
-    if (!match) throw new ProviderError("policy", "nano-banana", "Gateway returned no image (prompt may be blocked)");
+    if (!match)
+      throw new ProviderError("policy", "nano-banana", "Gateway returned no image (prompt may be blocked)");
 
     const id = randomUUID();
-    this.outputs.set(id, Buffer.from(match[2] ?? "", "base64"));
+    pruneOutputs();
+    outputs.set(id, {
+      data: Buffer.from(match[2] ?? "", "base64"),
+      contentType: match[1] ?? "image/png",
+      at: Date.now(),
+    });
     return { requestId: id, status: "completed" };
   }
 
   async status(requestId: string): Promise<StatusResult> {
-    if (!this.outputs.has(requestId))
+    if (!outputs.has(requestId))
       return { status: "failed", error: "Output no longer available (worker restarted)", outputs: [] };
     return { status: "completed", outputs: [{ url: `${URL_PREFIX}${requestId}`, kind: "image" }] };
   }
@@ -97,8 +113,10 @@ export class NanoBananaProvider implements MediaProvider {
   }
 
   async download(url: string) {
-    const data = this.outputs.get(url.slice(URL_PREFIX.length));
-    if (!data) throw new ProviderError("not_found", "nano-banana", "Output no longer available");
-    return { data, contentType: "image/png" };
+    const id = url.slice(URL_PREFIX.length);
+    const o = outputs.get(id);
+    if (!o) throw new ProviderError("not_found", "nano-banana", "Output no longer available");
+    outputs.delete(id);
+    return { data: o.data, contentType: o.contentType };
   }
 }

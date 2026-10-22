@@ -136,7 +136,12 @@ export async function listIntegrations(ctx: Ctx) {
       },
       higgsfield: {
         configured: integrationsConfigured.higgsfield(),
-        models: (mediaProvider()?.models() ?? []).map((m) => ({ id: m.id, label: m.label, kind: m.kind, docs: m.docs })),
+        models: (mediaProvider()?.models() ?? []).map((m) => ({
+          id: m.id,
+          label: m.label,
+          kind: m.kind,
+          docs: m.docs,
+        })),
       },
       llm: {
         configured: integrationsConfigured.llm(),
