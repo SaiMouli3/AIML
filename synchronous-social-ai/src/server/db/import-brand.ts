@@ -3,11 +3,14 @@
  * profile, services catalog, website facts (each linked to the page it came from), brand rules,
  * the link allowlist, and the website pages themselves as searchable knowledge sources.
  *
- *   BRAND_EMAIL=you@company.com BRAND_PASSWORD='…' npm run brand:import -- seeds/brands/sutra-services.json
+ *   BRAND_EMAIL=you@company.com npm run brand:import -- seeds/brands/sutra-services.json
+ *
+ * BRAND_PASSWORD is optional: without it a strong password is generated and printed once.
  *
  * If the user already exists, a new workspace is added to their account. Website pages are fetched
  * live; a page that cannot be fetched is skipped (and reported), never invented.
  */
+import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
@@ -62,6 +65,8 @@ const packSchema = z.object({
   sources: z.array(z.string()).default([]),
 });
 
+const PLACEHOLDERS = new Set(["your-own-password-here", "choose-12+-chars", "at least 12 chars", "…", "..."]);
+
 /** Keep the page's <main> content (drops navigation and footer) when the page has one. */
 function mainHtml(html: string) {
   const m = html.match(/<main[\s\S]*?<\/main>/i);
@@ -97,19 +102,24 @@ async function main() {
   )[0];
   let userId: string;
   let workspaceId: string;
+  let generatedPassword: string | null = null;
   if (existing) {
     const ws = await createAdditionalWorkspace(existing.id, pack.workspace.name, pack.workspace.timezone);
     userId = existing.id;
     workspaceId = ws.id;
     process.stdout.write(`Existing user ${email}: added workspace "${ws.name}".\n`);
   } else {
-    if (!password || password.length < 12)
-      throw new Error("New user: set BRAND_PASSWORD (at least 12 characters)");
+    // No password given → generate a strong one and print it once, so nobody has to share a password.
+    if (password && PLACEHOLDERS.has(password.trim().toLowerCase()))
+      throw new Error("BRAND_PASSWORD is still the example placeholder. Choose your own, or leave it unset.");
+    if (password && password.length < 12) throw new Error("BRAND_PASSWORD must be at least 12 characters");
+    const finalPassword = password || randomBytes(18).toString("base64url");
+    generatedPassword = password ? null : finalPassword;
     const r = await signup(
       {
         name: process.env.BRAND_OWNER_NAME ?? pack.workspace.name,
         email,
-        password,
+        password: finalPassword,
         workspaceName: pack.workspace.name,
         timezone: pack.workspace.timezone,
       },
@@ -200,6 +210,14 @@ async function main() {
       `  profile ✓, ${pack.services.length} services, ${facts} facts, ${pack.brandRules.length} brand rules, ${pack.allowedDomains.length} allowed domain(s)`,
       `  ${sourceByPage.size}/${pack.sources.length} website pages added as knowledge sources`,
       ...(skipped.length ? [`  skipped: ${skipped.join("; ")}`] : []),
+      ...(generatedPassword
+        ? [
+            "",
+            `Sign in as ${email} with this generated password (shown once, not stored anywhere else):`,
+            `  ${generatedPassword}`,
+            "Change it after signing in if you like.",
+          ]
+        : []),
       "",
     ].join("\n"),
   );
