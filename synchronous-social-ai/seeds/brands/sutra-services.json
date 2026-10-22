@@ -1,0 +1,318 @@
+{
+  "$comment": "Brand pack for `npm run brand:import`. Everything below is taken from the public website https://sutraservices.in (fetched 22 October 2026). Facts quote the page they came from. No prices are listed because the website does not publish fixed prices.",
+  "workspace": {
+    "name": "Sutra Services",
+    "timezone": "Asia/Kolkata",
+    "currency": "INR"
+  },
+  "profile": {
+    "name": "Sutra Services",
+    "website": "https://sutraservices.in",
+    "description": "Sutra Services is a technology and automation company in Bangalore. It designs and builds high-performance websites, AI agents, WhatsApp and voice AI, business workflow automation, custom software, API and SAP/ERP integrations and data & analytics solutions — always starting from the business problem, not the tool. Tagline: \"Technology that makes business simpler.\" The name means \"a thread that connects\".",
+    "industry": "Technology services — AI, automation, software and integrations",
+    "markets": ["India", "Bangalore"],
+    "customerSegments": [
+      "SMEs ready to replace manual work, spreadsheets and WhatsApp coordination",
+      "Startups that need an MVP or SaaS foundation that scales without a rewrite",
+      "Enterprises modernising processes around ERPs such as SAP",
+      "Healthcare clinics and providers",
+      "Retail stores and chains",
+      "Manufacturers",
+      "Logistics and warehousing operators",
+      "Finance teams and financial services",
+      "Professional services firms and agencies",
+      "Education providers",
+      "Real estate developers and brokers",
+      "Hospitality businesses",
+      "E-commerce brands"
+    ],
+    "objectives": [
+      "Generate qualified project enquiries through the website (\"Start a Project\")",
+      "Build trust as a business-first, no-hype AI and automation partner",
+      "Educate buyers with practical insights on AI agents, automation and WhatsApp AI",
+      "Publish verified case studies as client work is approved"
+    ],
+    "differentiators": [
+      "Business-first engineering: start with the workflow and the outcome, then choose the technology",
+      "AI, automation and software under one roof — websites, apps, agents, integrations and data by one team",
+      "Integrates with systems clients already run (CRMs, ERPs, messaging, databases) instead of forcing replacements",
+      "Modern, maintainable architecture — no exotic choices the next hire can't support",
+      "Performance-focused development: fast pages, responsive apps, efficient backends",
+      "Scalable foundations so phase two doesn't need a rewrite",
+      "Long-term thinking: documentation, monitoring and ownership handover in every project — no lock-in",
+      "Honesty over hype: will say so if an off-the-shelf tool fits or automation isn't worth it yet"
+    ],
+    "brandVoice": {
+      "tone": "Plain, calm, practical and honest. Explains things simply, avoids hype, focuses on business outcomes. Short confident sentences (e.g. \"AI that doesn't just answer. It acts.\", \"Build. Automate. Scale.\").",
+      "do": [
+        "Lead with the business problem and the outcome, then the technology",
+        "Use concrete workflow examples (bookings, follow-ups, invoices, reports)",
+        "Keep people in control: mention approvals, human hand-off and logging",
+        "Answer plainly; say what depends on scope",
+        "Invite the reader to describe their workflow (\"Start a Project\", \"Discuss Your Idea\")"
+      ],
+      "dont": [
+        "Hype or buzzwords; AI is a tool, not a strategy",
+        "Quote fixed prices or timelines — both depend on scope",
+        "Present capability blueprints as client case studies",
+        "Claim official partnerships, certifications or endorsements (including SAP)",
+        "Promise guaranteed results"
+      ]
+    },
+    "visualIdentity": "Clean, modern technology aesthetic with light and dark themes (theme colour #f5f6f8), Geist and Geist Mono typography, workflow diagrams and code-style agent traces (intent → tool → guardrail → result).",
+    "pricingNotes": "No fixed prices are published. Cost depends on scope, integrations and the level of reliability required; a scoped estimate follows the first conversation, and work can be phased to fit the budget. The contact form budget ranges are: Under ₹50,000 · ₹50,000–₹1,00,000 · ₹1,00,000–₹5,00,000 · ₹5,00,000+ · Not sure yet.",
+    "policies": "Enquiries: a person (not an autoresponder) reads every submission, replies with questions or a time to talk, then maps the workflow and provides an approach, phases and estimate if it's a fit. Submitting an enquiry does not create a contract; projects, pricing, timelines and deliverables are agreed in a written proposal. Capability blueprints are illustrative designs, not client results. Privacy: only what is needed to respond is collected, personal information is never sold, analytics load only with consent. Technology names listed do not imply partnership, certification or endorsement.",
+    "deliveryRegions": ["India"],
+    "escalationContact": "sales@sutraservices.in",
+    "languages": ["en"]
+  },
+  "allowedDomains": ["sutraservices.in"],
+  "services": [
+    {
+      "name": "Website Development",
+      "url": "https://sutraservices.in/services/web-development",
+      "description": "High-performance websites with clear positioning, structured content and enquiry flows that connect directly into the sales process. Includes positioning and structure, performance by default (server-rendered pages, strong Core Web Vitals), search and AI discoverability (semantic HTML, structured data, sitemaps) and connected lead capture (forms and WhatsApp entry points into CRM, inbox or team chat).",
+      "keywords": ["website", "web development", "landing page", "seo", "site"]
+    },
+    {
+      "name": "Web Applications",
+      "url": "https://sutraservices.in/services",
+      "description": "Secure, role-based web applications — customer portals, booking systems, dashboards and SaaS platforms — built on a modern, maintainable stack.",
+      "keywords": ["web app", "portal", "dashboard", "saas", "booking system"]
+    },
+    {
+      "name": "Custom Software",
+      "url": "https://sutraservices.in/services/custom-software",
+      "description": "Internal platforms and operations tools that replace spreadsheets and disconnected apps with one system: process modelling, audit and accountability, automation hooks and live reporting. Typical uses: operations management, approval workflows, inventory and asset tracking, internal knowledge tools.",
+      "keywords": ["custom software", "internal tool", "platform", "spreadsheet", "operations"]
+    },
+    {
+      "name": "AI Agents",
+      "url": "https://sutraservices.in/services/ai-agents",
+      "description": "AI agents that understand requests, retrieve information from your own knowledge (RAG, with sources), use scoped tools to read and update business systems, follow guardrails and hand over to people when judgement is required. Use cases: customer support, sales and lead qualification, internal knowledge assistants, operations and document agents.",
+      "keywords": ["ai agent", "agent", "chatbot", "rag", "assistant"]
+    },
+    {
+      "name": "AI Automation",
+      "url": "https://sutraservices.in/services",
+      "description": "Classification, extraction, summarisation and drafting steps powered by language models, embedded into existing workflows with validation and human review built in.",
+      "keywords": ["ai automation", "llm", "extraction", "summarisation", "document processing"]
+    },
+    {
+      "name": "WhatsApp AI Agents",
+      "url": "https://sutraservices.in/services/whatsapp-ai",
+      "description": "AI agents on the official WhatsApp Business Platform that answer questions, qualify leads, book appointments and send approved reminder templates, write structured data into the CRM and hand complex conversations to a shared team inbox.",
+      "keywords": ["whatsapp", "whatsapp ai", "whatsapp bot", "whatsapp business"]
+    },
+    {
+      "name": "Voice AI Agents",
+      "url": "https://sutraservices.in/services",
+      "description": "Phone agents that handle inbound and outbound calls with natural conversation, connected to the calendar, CRM and call-routing rules — answer, qualify, schedule and route calls, with call summaries logged.",
+      "keywords": ["voice ai", "voice agent", "phone", "call", "receptionist"]
+    },
+    {
+      "name": "Business Workflow Automation",
+      "url": "https://sutraservices.in/services/business-automation",
+      "description": "Maps how work actually moves, then automates the repetitive steps — approvals, follow-ups, data entry, notifications and reporting — with triggers, conditions, actions and exception handling, while people keep control of decisions.",
+      "keywords": ["automation", "workflow", "automate", "follow-up", "approvals", "reports"]
+    },
+    {
+      "name": "API Integrations",
+      "url": "https://sutraservices.in/services/integrations",
+      "description": "Connects CRMs, ERPs, databases, payment systems, messaging platforms and internal tools with integrations that are monitored, retry on failure and keep data consistent: system-to-system sync, webhooks and events, custom APIs over legacy systems, monitoring and alerts with safe replay.",
+      "keywords": ["integration", "api", "crm", "webhook", "sync"]
+    },
+    {
+      "name": "SAP & ERP Integration",
+      "url": "https://sutraservices.in/services/sap-erp",
+      "description": "Integrations, portals and automation around SAP and other ERPs through supported interfaces (OData, BAPIs, IDocs, vendor connectors), keeping the ERP core clean and upgradeable: vendor and customer portals, sales order automation, approval workflows and ERP-aware AI assistants. No official SAP partnership or certification is claimed.",
+      "keywords": ["sap", "erp", "odata", "btp", "enterprise"]
+    },
+    {
+      "name": "Data & Analytics",
+      "url": "https://sutraservices.in/services/data-analytics",
+      "description": "Brings data from tools, databases and ERP into one reliable place: data pipelines, agreed metric definitions, focused dashboards, and alerts and automations when numbers move. Includes automated reporting with AI-written summaries.",
+      "keywords": ["data", "analytics", "dashboard", "reporting", "bi"]
+    },
+    {
+      "name": "Cloud & Backend Systems",
+      "url": "https://sutraservices.in/services",
+      "description": "Cloud backends and backend systems that make tools work together, built on proven stacks (Python, Go, PostgreSQL, Redis, Docker, Kubernetes, AWS, Cloudflare).",
+      "keywords": ["cloud", "backend", "aws", "kubernetes", "infrastructure"]
+    }
+  ],
+  "facts": [
+    {
+      "category": "brand",
+      "key": "Tagline",
+      "value": "Technology that makes business simpler.",
+      "page": "/"
+    },
+    {
+      "category": "brand",
+      "key": "Mission",
+      "value": "Make business simpler — one workflow at a time: replace friction from spreadsheets, chat groups and manual copying with technology that is practical, reliable and connected.",
+      "page": "/about"
+    },
+    {
+      "category": "brand",
+      "key": "Principles",
+      "value": "Simple beats impressive. Workflows before features. AI is a tool, not a strategy. Honesty over hype.",
+      "page": "/about"
+    },
+    {
+      "category": "brand",
+      "key": "How Sutra thinks",
+      "value": "Business problem → technology solution → automation → measurable improvement. Look at the real process, weigh value against effort, keep people in control, make everything visible.",
+      "page": "/about"
+    },
+    {
+      "category": "product",
+      "key": "What Sutra Services builds",
+      "value": "Websites, web applications, AI agents, WhatsApp and voice AI agents, business workflow automation, custom software, API and ERP/SAP integrations, cloud backends and data & analytics solutions.",
+      "page": "/"
+    },
+    {
+      "category": "product",
+      "key": "Delivery process",
+      "value": "Five stages: Understand (workflow map, goals, priorities) → Architect (system architecture, scope and phases, estimate) → Build (working releases, tests, documentation) → Integrate (live integrations, data migration, team onboarding) → Optimise (monitoring, improvement backlog, ongoing support).",
+      "page": "/"
+    },
+    {
+      "category": "product",
+      "key": "Technologies",
+      "value": "LLMs, agentic AI, RAG, vector databases, computer vision, Python, Go, FastAPI, TypeScript, Next.js, React, PostgreSQL, Redis, data pipelines, Docker, Kubernetes, AWS, Cloudflare, SAP, APIs. Listing does not imply an official partnership, certification or endorsement.",
+      "page": "/"
+    },
+    {
+      "category": "product",
+      "key": "Solutions by outcome",
+      "value": "Automate customer support; automate lead management; automate operations; connect business systems; build internal tools; create AI assistants; modernise your digital presence; turn data into decisions.",
+      "page": "/solutions"
+    },
+    {
+      "category": "product",
+      "key": "Capability blueprints",
+      "value": "Five illustrative system designs (not client case studies): AI Customer Support System, Business Workflow Automation, Enterprise Integration Platform, AI Voice Assistant, Internal Operations Platform. Verified case studies will be published only with client permission.",
+      "page": "/work"
+    },
+    {
+      "category": "audience",
+      "key": "Industries served",
+      "value": "Healthcare, retail, manufacturing, logistics, warehousing, finance, professional services, education, real estate, hospitality, e-commerce, startups, SMEs and enterprise.",
+      "page": "/industries"
+    },
+    {
+      "category": "pricing",
+      "key": "Pricing approach",
+      "value": "No fixed prices are published; cost depends on scope, integrations and required reliability. A scoped estimate is provided after an initial conversation, and work can be phased to fit the budget.",
+      "page": "/"
+    },
+    {
+      "category": "pricing",
+      "key": "Budget ranges on the contact form",
+      "value": "Under ₹50,000; ₹50,000 – ₹1,00,000; ₹1,00,000 – ₹5,00,000; ₹5,00,000+; Not sure yet.",
+      "page": "/contact"
+    },
+    {
+      "category": "faq",
+      "key": "How long does a project take?",
+      "value": "It depends on scope. A focused website or single automation is usually weeks; a web application, AI agent with several integrations or an internal platform is typically a few months, delivered in phases. A timeline is given after understanding the workflow and systems.",
+      "page": "/"
+    },
+    {
+      "category": "faq",
+      "key": "How do AI agents work?",
+      "value": "A language model combined with access to your knowledge (grounded answers), tools (functions to look up or update records) and rules (what it may do, when to confirm, when to hand over to a person). Every action is logged for review.",
+      "page": "/"
+    },
+    {
+      "category": "faq",
+      "key": "Can Sutra integrate SAP?",
+      "value": "Yes — through supported interfaces such as OData services and APIs, working alongside the client's ERP team. Sutra does not claim official SAP partnership or certification.",
+      "page": "/"
+    },
+    {
+      "category": "faq",
+      "key": "Do you work with startups and enterprises?",
+      "value": "Yes. Startups get an MVP on a stack that scales without a rewrite; enterprises get work on a defined process or department, integrated with established systems and following their security, governance and change-management requirements.",
+      "page": "/"
+    },
+    {
+      "category": "policy",
+      "key": "Enquiry process",
+      "value": "A person reads every submission, replies with questions or a time to talk, and if it's a fit maps the workflow and provides an outline of the approach, phases and an estimate. Submitting an enquiry does not create a contract; work is agreed in a written proposal.",
+      "page": "/contact"
+    },
+    {
+      "category": "policy",
+      "key": "Privacy",
+      "value": "Only the information needed to respond is collected; personal information is not sold; analytics (e.g. Google Analytics, Tag Manager, Microsoft Clarity) load only after consent.",
+      "page": "/privacy"
+    },
+    {
+      "category": "other",
+      "key": "Contact email",
+      "value": "sales@sutraservices.in",
+      "page": "/contact"
+    },
+    {
+      "category": "other",
+      "key": "Location",
+      "value": "Bagmane Tech Park, Bangalore",
+      "page": "/contact"
+    },
+    {
+      "category": "other",
+      "key": "Primary call to action",
+      "value": "Start a Project — https://sutraservices.in/contact",
+      "page": "/contact"
+    }
+  ],
+  "brandRules": [
+    {
+      "kind": "voice",
+      "text": "Plain, calm and honest. Lead with the business problem and outcome; no hype."
+    },
+    { "kind": "approved_claim", "text": "AI, automation and software under one roof" },
+    {
+      "kind": "approved_claim",
+      "text": "We integrate with the CRMs, ERPs, messaging and databases you already run"
+    },
+    {
+      "kind": "approved_claim",
+      "text": "Documentation, monitoring and ownership handover are part of every project"
+    },
+    { "kind": "forbidden_claim", "text": "Official SAP partner or SAP certified" },
+    { "kind": "forbidden_claim", "text": "Fixed prices or guaranteed delivery timelines" },
+    {
+      "kind": "forbidden_claim",
+      "text": "Capability blueprints presented as client case studies or results"
+    },
+    { "kind": "forbidden_word", "text": "guaranteed" },
+    {
+      "kind": "required_disclaimer",
+      "text": "Technology names do not imply an official partnership, certification or endorsement."
+    }
+  ],
+  "sources": [
+    "/",
+    "/about",
+    "/services",
+    "/solutions",
+    "/industries",
+    "/work",
+    "/insights",
+    "/contact",
+    "/services/web-development",
+    "/services/ai-agents",
+    "/services/business-automation",
+    "/services/custom-software",
+    "/services/whatsapp-ai",
+    "/services/integrations",
+    "/services/sap-erp",
+    "/services/data-analytics",
+    "/privacy",
+    "/terms"
+  ]
+}

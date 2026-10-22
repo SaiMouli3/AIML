@@ -2,7 +2,7 @@
   "name": "synchronous-social-ai",
   "version": "0.1.0",
   "private": true,
-  "description": "Synchronous Social AI — governed AI marketing operating system",
+  "description": "Synchronous Social AI \u2014 governed AI marketing operating system",
   "engines": {
     "node": ">=20.11"
   },
@@ -21,7 +21,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "check": "npm run lint && npm run typecheck && npm run format:check && npm test"
+    "check": "npm run lint && npm run typecheck && npm run format:check && npm test",
+    "brand:import": "tsx src/server/db/import-brand.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1154.0",

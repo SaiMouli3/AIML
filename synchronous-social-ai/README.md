@@ -41,6 +41,8 @@ npm run worker                  # in a second terminal — runs agents, publishi
 
 > The database user must **not** be a superuser, because superusers bypass row-level security. The compose file and CI create a normal role.
 
+**Import a real brand:** `BRAND_EMAIL=you@company.com BRAND_PASSWORD='at least 12 chars' npm run brand:import -- seeds/brands/sutra-services.json` creates a workspace (or adds one to an existing account) and fills the Company Brain from a brand pack: profile, services catalog, website facts linked to their source pages, brand rules, link allowlist, and the live website pages as searchable knowledge. Copy the JSON to make a pack for another brand.
+
 To try the full loop locally without any platform: **Integrations → Mock** on any channel tile, then publish a post through the Approval Center. Then use **Inbox → Simulate event** to inject a comment ("Please send me the link").
 
 ## Commands

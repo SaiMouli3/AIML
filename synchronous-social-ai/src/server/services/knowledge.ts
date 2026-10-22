@@ -104,18 +104,31 @@ export async function deleteSource(ctx: Ctx, id: string) {
   await audit(ctx, { action: "brain.source_deleted", targetType: "knowledge_source", targetId: id });
 }
 
+function safeCodePoint(n: number) {
+  return Number.isInteger(n) && n > 0 && n <= 0x10ffff && !(n >= 0xd800 && n <= 0xdfff)
+    ? String.fromCodePoint(n)
+    : null;
+}
+
 export function htmlToText(html: string) {
-  return html
-    .replace(/<(script|style|noscript)[\s\S]*?<\/\1>/gi, " ")
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/(p|div|h[1-6]|li|tr)>/gi, "\n")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/[ \t]+/g, " ")
-    .trim();
+  return (
+    html
+      .replace(/<(script|style|noscript)[\s\S]*?<\/\1>/gi, " ")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<\/(p|div|h[1-6]|li|tr)>/gi, "\n")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&apos;/g, "'")
+      .replace(/&#x([0-9a-f]{1,6});/gi, (m, h: string) => safeCodePoint(parseInt(h, 16)) ?? m)
+      .replace(/&#(\d{1,7});/g, (m, d: string) => safeCodePoint(Number(d)) ?? m)
+      // Last, so "&amp;lt;" stays the literal text "&lt;".
+      .replace(/&amp;/g, "&")
+      .replace(/[ \t]+/g, " ")
+      .trim()
+  );
 }
 
 export async function extractText(data: Buffer, mimeType: string): Promise<string> {
