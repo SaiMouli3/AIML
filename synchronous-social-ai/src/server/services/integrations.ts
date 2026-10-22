@@ -29,7 +29,8 @@ import {
   MockMetaAdsAdapter,
   type MetaAdsAdapter,
 } from "../providers/meta/marketing";
-import { mediaProvider } from "../providers/higgsfield/higgsfield";
+import { resolveAiConfig } from "./ai-config";
+import { workspaceMediaProvider } from "./media";
 import {
   exchangeFacebookPagesCode,
   facebookPageCapabilities,
@@ -105,6 +106,7 @@ export const accountSettingsSchema = z.object({
 
 export async function listIntegrations(ctx: Ctx) {
   requirePermission(ctx, "integrations.read");
+  const ai = await resolveAiConfig(ctx);
   const accounts = await ctx.tx
     .select()
     .from(s.connectedAccounts)
@@ -136,7 +138,7 @@ export async function listIntegrations(ctx: Ctx) {
       },
       higgsfield: {
         configured: integrationsConfigured.higgsfield(),
-        models: (mediaProvider()?.models() ?? []).map((m) => ({
+        models: ((await workspaceMediaProvider(ctx))?.models() ?? []).map((m) => ({
           id: m.id,
           label: m.label,
           kind: m.kind,
@@ -144,9 +146,10 @@ export async function listIntegrations(ctx: Ctx) {
         })),
       },
       llm: {
-        configured: integrationsConfigured.llm(),
-        baseUrl: new URL(env().LLM_BASE_URL).origin,
-        models: { default: env().LLM_MODEL_DEFAULT, fast: env().LLM_MODEL_FAST },
+        configured: ai.llm.keySource !== "none",
+        keySource: ai.llm.keySource,
+        baseUrl: new URL(ai.llm.baseUrl).origin,
+        models: { default: ai.models.default, fast: ai.models.fast },
       },
     },
     mocksAllowed: env().mocksAllowed,

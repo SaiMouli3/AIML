@@ -354,11 +354,38 @@ export function mockPng(width: number, height: number): Buffer {
   ]);
 }
 
-export function mediaProvider(): MediaProvider | null {
+export interface MediaProviderConfig {
+  imageProvider: "auto" | "higgsfield" | "gateway" | "off";
+  higgsfield: { keyId: string; keySecret: string } | null;
+  gateway: { baseUrl: string; apiKey: string | null; imageModel: string; imagePriceUsd: number };
+}
+
+/**
+ * Pick the media provider for a workspace. "auto": Higgsfield when keys exist, else the gateway image
+ * model (Nano Banana by default), else the labelled mock in development. Without a config the server
+ * environment is used.
+ */
+export function mediaProvider(cfg?: MediaProviderConfig): MediaProvider | null {
   const e = env();
-  if (e.HIGGSFIELD_API_KEY_ID && e.HIGGSFIELD_API_KEY_SECRET)
-    return new HiggsfieldProvider(e.HIGGSFIELD_API_KEY_ID, e.HIGGSFIELD_API_KEY_SECRET);
-  if (e.LLM_API_KEY) return new NanoBananaProvider(e.LLM_BASE_URL, e.LLM_API_KEY);
-  if (e.mocksAllowed) return new MockMediaProvider();
-  return null;
+  const c: MediaProviderConfig = cfg ?? {
+    imageProvider: "auto",
+    higgsfield:
+      e.HIGGSFIELD_API_KEY_ID && e.HIGGSFIELD_API_KEY_SECRET
+        ? { keyId: e.HIGGSFIELD_API_KEY_ID, keySecret: e.HIGGSFIELD_API_KEY_SECRET }
+        : null,
+    gateway: { baseUrl: e.LLM_BASE_URL, apiKey: e.LLM_API_KEY ?? null, imageModel: "", imagePriceUsd: 0.04 },
+  };
+  const hf = () => (c.higgsfield ? new HiggsfieldProvider(c.higgsfield.keyId, c.higgsfield.keySecret) : null);
+  const gw = () =>
+    c.gateway.apiKey
+      ? new NanoBananaProvider(c.gateway.baseUrl, c.gateway.apiKey, {
+          model: c.gateway.imageModel,
+          usdPerImage: c.gateway.imagePriceUsd,
+        })
+      : null;
+  const mock = () => (e.mocksAllowed ? new MockMediaProvider() : null);
+  if (c.imageProvider === "off") return null;
+  if (c.imageProvider === "higgsfield") return hf() ?? mock();
+  if (c.imageProvider === "gateway") return gw() ?? mock();
+  return hf() ?? gw() ?? mock();
 }

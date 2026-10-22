@@ -13,8 +13,8 @@ import type { MediaProvider, ModelInfo, StatusResult, SubmitResult } from "./hig
 // object: mediaProvider() returns a new instance on every call, and the media job reschedules between
 // submit and status. A worker restart in that window fails the job; move outputs to tenant storage if
 // that happens often. Unclaimed outputs are dropped after OUTPUT_TTL_MS.
-const GATEWAY_MODEL = "gemini-2.5-flash-image";
-const EST_USD_PER_IMAGE = 0.04;
+const DEFAULT_GATEWAY_MODEL = "gemini-2.5-flash-image";
+const DEFAULT_USD_PER_IMAGE = 0.04;
 const TIMEOUT_MS = 120_000;
 const URL_PREFIX = "nano-banana://";
 const OUTPUT_TTL_MS = 60 * 60_000;
@@ -48,17 +48,28 @@ export class NanoBananaProvider implements MediaProvider {
   readonly name = "nano-banana";
   readonly mode = "live" as const;
 
+  private readonly gatewayModel: string;
+  private readonly usdPerImage: number;
+
   constructor(
     private baseUrl: string,
     private apiKey: string,
-  ) {}
+    /** Workspace settings: which gateway image model to call and its estimated price per image. */
+    opts: { model?: string; usdPerImage?: number } = {},
+  ) {
+    this.gatewayModel = opts.model || DEFAULT_GATEWAY_MODEL;
+    this.usdPerImage = opts.usdPerImage ?? DEFAULT_USD_PER_IMAGE;
+  }
 
   models(): ModelInfo[] {
-    return [NANO_BANANA_MODEL];
+    // The catalog id stays "nano-banana" so queued jobs keep resolving if the owner switches image models.
+    return this.gatewayModel === DEFAULT_GATEWAY_MODEL
+      ? [NANO_BANANA_MODEL]
+      : [{ ...NANO_BANANA_MODEL, label: `Gateway image model (${this.gatewayModel})`, docs: "" }];
   }
 
   async estimate() {
-    return { credits: null, usd: EST_USD_PER_IMAGE };
+    return { credits: null, usd: this.usdPerImage };
   }
 
   async submit(_model: ModelInfo, prompt: string, params: Record<string, unknown>): Promise<SubmitResult> {
@@ -69,7 +80,7 @@ export class NanoBananaProvider implements MediaProvider {
         method: "POST",
         headers: { Authorization: `Bearer ${this.apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: GATEWAY_MODEL,
+          model: this.gatewayModel,
           messages: [{ role: "user", content: `${prompt}${aspect}` }],
           modalities: ["image", "text"],
         }),

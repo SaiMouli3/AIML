@@ -77,6 +77,23 @@ export interface WorkspaceSettings {
   mediaMonthlyBudgetUsd?: number;
   approvalExpiryHours?: number;
   retentionDays?: number;
+  /** Owner-managed AI configuration. Unset fields fall back to the server environment. */
+  ai?: WorkspaceAiSettings;
+}
+
+export interface WorkspaceAiSettings {
+  /** OpenAI-compatible gateway base URL (e.g. https://api.experientiallabs.ai/v1). */
+  llmBaseUrl?: string;
+  defaultModel?: string;
+  fastModel?: string;
+  /** Image model used through the gateway (Nano Banana etc.). */
+  imageModel?: string;
+  /** auto = Higgsfield if keys exist, else the gateway image model, else (dev) mock. */
+  imageProvider?: "auto" | "higgsfield" | "gateway" | "off";
+  /** USD per 1M tokens, used when the gateway does not report the cost of a call. */
+  prices?: Record<string, { input: number; output: number }>;
+  /** Estimated USD per generated image (budget checks before generating). */
+  imagePriceUsd?: number;
 }
 
 export const memberships = pgTable(
@@ -307,6 +324,22 @@ export const oauthGrants = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index("grants_account_idx").on(t.accountId)],
+);
+
+/** Owner-managed API keys per workspace (LLM gateway, Higgsfield). AES-256-GCM encrypted; never returned. */
+export const workspaceSecrets = pgTable(
+  "workspace_secrets",
+  {
+    id: id(),
+    workspaceId: wsRef(),
+    key: text("key").notNull(),
+    encryptedValue: text("encrypted_value").notNull(),
+    /** Last 4 characters, for "saved ••••abcd" display. */
+    hint: text("hint").notNull(),
+    updatedBy: uuid("updated_by").references(() => users.id),
+    updatedAt: updatedAt(),
+  },
+  (t) => [uniqueIndex("workspace_secret_uq").on(t.workspaceId, t.key)],
 );
 
 /** OAuth `state` values. Not tenant-RLS protected because the callback resolves them by hash. */
@@ -1139,6 +1172,7 @@ export const rateLimitBuckets = pgTable(
 
 export const RLS_TABLES = [
   "workspace_memberships",
+  "workspace_secrets",
   "invitations",
   "company_profiles",
   "knowledge_sources",

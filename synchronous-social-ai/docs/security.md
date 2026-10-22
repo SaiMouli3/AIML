@@ -26,6 +26,13 @@
 - Export: Settings → _Export workspace data_ (JSON, no secrets). Deletion: owner types the slug; tenant rows cascade and stored objects are removed.
 - Tenant knowledge is never used for other tenants or for training; LLM prompts contain only the current workspace's data.
 
+## Owner-managed AI keys
+
+- Stored per workspace in `workspace_secrets` (row-level security, AES-256-GCM with `ENCRYPTION_KEY`). Values are write-only: the API and UI return only whether a key is saved and its last 4 characters.
+- Only the `owner` role has `ai.configure`; admins do not, because a gateway key can spend money and sees every prompt.
+- Changes are audited (before/after settings and which keys were set or removed), never the key values.
+- The server sends the key to the configured gateway URL, so the URL must be public HTTPS. Hostnames that resolve to private, loopback, link-local (including cloud metadata) or CGNAT addresses are rejected on save and before every connection test. `http://localhost` is allowed only outside staging/production. Remaining gap: DNS could change after the check (rebinding); pin or re-check at request time before allowing untrusted owners on a shared deployment.
+
 ## Known gaps / before production
 
 - MFA/SSO not implemented (session layer is the seam). Email delivery for invites/notifications is not wired (links are generated for manual sharing).

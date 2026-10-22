@@ -48,6 +48,8 @@ export const PERMISSIONS = [
   "agents.manage",
   "usage.read",
   "operations.manage",
+  /** API keys, models and prices. Owner only: keys can spend money and see every prompt. */
+  "ai.configure",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -75,7 +77,7 @@ const MAKER: Permission[] = [
 
 const MATRIX: Record<Role, Set<Permission>> = {
   owner: ALL,
-  admin: new Set(PERMISSIONS),
+  admin: new Set(PERMISSIONS.filter((p) => p !== "ai.configure")),
   marketing_manager: new Set([...MAKER, "approvals.decide.tier3", "usage.read"]),
   creator: new Set(MAKER.filter((p) => p !== "brain.write" && p !== "campaigns.write")),
   approver: new Set([...READ, "inbox.read", "approvals.decide.tier3", "approvals.decide.tier4"]),
@@ -83,7 +85,8 @@ const MATRIX: Record<Role, Set<Permission>> = {
   agency_operator: new Set(MAKER),
   auditor: new Set([...READ, "audit.read", "usage.read"]),
 };
-// Owners and admins share permissions; only an owner can grant or remove the owner role (assignableRoles).
+// Owners and admins share permissions except AI keys/models/costs (owner only); only an owner can grant
+// or remove the owner role (assignableRoles).
 
 export function can(role: Role | string, permission: Permission): boolean {
   return MATRIX[role as Role]?.has(permission) ?? false;

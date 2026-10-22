@@ -2,8 +2,12 @@ import { PageHeader } from "@/components/ui/primitives";
 import { Forbidden } from "@/components/forbidden";
 import { loadPage, serialize } from "@/server/http/page";
 import { can } from "@/server/rbac/roles";
-import { mediaProvider } from "@/server/providers/higgsfield/higgsfield";
-import { listGenerations, listMedia, mediaProviderStatus } from "@/server/services/media";
+import {
+  listGenerations,
+  listMedia,
+  mediaProviderStatus,
+  workspaceMediaProvider,
+} from "@/server/services/media";
 import { MediaClient } from "./client";
 
 export const metadata = { title: "Media Library" };
@@ -14,18 +18,19 @@ export default async function MediaPage() {
     async (ctx) => ({
       media: await listMedia(ctx, 120),
       jobs: await listGenerations(ctx, 30),
-      provider: mediaProviderStatus(),
+      provider: await mediaProviderStatus(ctx),
+      models: ((await workspaceMediaProvider(ctx))?.models() ?? []).map((m) => ({
+        id: m.id,
+        label: m.label,
+        kind: m.kind,
+        docs: m.docs,
+        defaultParams: m.defaultParams,
+      })),
     }),
     { permission: "content.read" },
   );
   if (!allowed) return <Forbidden what="the Media Library" />;
-  const models = (mediaProvider()?.models() ?? []).map((m) => ({
-    id: m.id,
-    label: m.label,
-    kind: m.kind,
-    docs: m.docs,
-    defaultParams: m.defaultParams,
-  }));
+  const models = data!.models;
   return (
     <>
       <PageHeader

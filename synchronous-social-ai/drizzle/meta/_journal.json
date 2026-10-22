@@ -22,6 +22,13 @@
       "when": 1792613267552,
       "tag": "0002_channels",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792676390868,
+      "tag": "0003_workspace_ai",
+      "breakpoints": true
     }
   ]
 }

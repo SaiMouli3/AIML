@@ -4,5 +4,5 @@ import { mediaProviderStatus } from "@/server/services/media";
 
 export const GET = route({ permission: "integrations.read" }, async ({ ctx }) => ({
   ...(await listIntegrations(ctx)),
-  media: mediaProviderStatus(),
+  media: await mediaProviderStatus(ctx),
 }));

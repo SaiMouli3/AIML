@@ -18,7 +18,7 @@ export default async function IntegrationsPage({
 }) {
   const sp = await searchParams;
   const { data, session, allowed } = await loadPage(
-    async (ctx) => ({ ...(await listIntegrations(ctx)), media: mediaProviderStatus() }),
+    async (ctx) => ({ ...(await listIntegrations(ctx)), media: await mediaProviderStatus(ctx) }),
     { permission: "integrations.read" },
   );
   if (!allowed) return <Forbidden what="Integrations" />;

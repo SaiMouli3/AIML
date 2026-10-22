@@ -57,6 +57,8 @@ export class OpenAICompatibleProvider implements LlmProvider {
     private readonly baseUrl: string,
     private readonly apiKey: string,
     private readonly fetchImpl: typeof fetch = fetch,
+    /** Workspace price overrides (USD per 1M tokens), checked before the built-in list. */
+    private readonly prices: Record<string, { input: number; output: number }> = {},
   ) {}
 
   async complete(req: LlmRequest): Promise<LlmResponse> {
@@ -116,7 +118,8 @@ export class OpenAICompatibleProvider implements LlmProvider {
     const content = choice?.message?.content ?? "";
     const tokensIn = json.usage?.prompt_tokens ?? 0;
     const tokensOut = json.usage?.completion_tokens ?? 0;
-    const price = PRICES[req.model];
+    const custom = this.prices[req.model];
+    const price: [number, number] | undefined = custom ? [custom.input, custom.output] : PRICES[req.model];
     const reported = typeof json.usage?.cost === "number";
     const costUsd = reported
       ? json.usage!.cost!
@@ -156,10 +159,17 @@ export class MockLlmProvider implements LlmProvider {
   }
 }
 
-export function liveLlmProvider(): LlmProvider | null {
+/** Live provider from a workspace's effective AI config, or from the server environment. */
+export function liveLlmProvider(cfg?: {
+  baseUrl: string;
+  apiKey: string | null;
+  prices?: Record<string, { input: number; output: number }>;
+}): LlmProvider | null {
   const e = env();
-  if (!e.LLM_API_KEY) return null;
-  return new OpenAICompatibleProvider(new URL(e.LLM_BASE_URL).hostname, e.LLM_BASE_URL, e.LLM_API_KEY);
+  const baseUrl = cfg?.baseUrl ?? e.LLM_BASE_URL;
+  const apiKey = cfg ? cfg.apiKey : (e.LLM_API_KEY ?? null);
+  if (!apiKey) return null;
+  return new OpenAICompatibleProvider(new URL(baseUrl).hostname, baseUrl, apiKey, fetch, cfg?.prices ?? {});
 }
 
 const KEEP = new Set([

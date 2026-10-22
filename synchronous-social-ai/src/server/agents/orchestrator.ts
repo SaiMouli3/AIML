@@ -11,6 +11,7 @@ import { redactString } from "../lib/redact";
 import { agentMayUseTool, type Tier } from "../policy/policy";
 import { isProviderError, ProviderError } from "../providers/errors";
 import { liveLlmProvider, MockLlmProvider, type LlmProvider } from "../providers/llm/llm";
+import { resolveAiConfig, type EffectiveAiConfig } from "../services/ai-config";
 import { enqueue } from "../queue/queue";
 import { registerJob, type JobContext } from "../queue/runtime";
 import { groundingBundle, searchKnowledge } from "../services/company-brain";
@@ -291,9 +292,14 @@ export function setLlmProviderForTests(p: LlmProvider | null) {
   providerOverride = p;
 }
 
-function providerFor(role: AgentRole, input: unknown, g: Grounding): LlmProvider | null {
+function providerFor(
+  role: AgentRole,
+  input: unknown,
+  g: Grounding,
+  ai: EffectiveAiConfig,
+): LlmProvider | null {
   if (providerOverride) return providerOverride;
-  const live = liveLlmProvider();
+  const live = liveLlmProvider({ baseUrl: ai.llm.baseUrl, apiKey: ai.llm.apiKey, prices: ai.prices });
   if (live) return live;
   if (env().mocksAllowed) return new MockLlmProvider(() => CONTRACTS[role].mock(input as never, g));
   return null;
@@ -506,7 +512,9 @@ export async function executeAgentRun(
     return { state: "CANCELLED" };
 
   let grounding: Grounding;
+  let ai: EffectiveAiConfig;
   try {
+    ai = await jc.tenant((ctx) => resolveAiConfig(ctx));
     grounding = await jc.tenant(async (ctx) => {
       const budget = (
         await ctx.tx.select().from(s.workspaces).where(eq(s.workspaces.id, ctx.workspaceId)).limit(1)
@@ -545,18 +553,21 @@ export async function executeAgentRun(
     output = contract.mock(input, grounding);
     steps = 1;
   } else {
-    const provider = providerFor(role, input, grounding);
+    const provider = providerFor(role, input, grounding, ai);
     if (!provider) {
       await failRun(
         jc,
         runId,
         "DRAFTING",
-        new AppError("INTEGRATION_NOT_CONNECTED", "No LLM provider is configured (set LLM_API_KEY)."),
+        new AppError(
+          "INTEGRATION_NOT_CONNECTED",
+          "No LLM provider is configured. The workspace owner can add an API key in Settings → AI models & keys.",
+        ),
       );
       return { state: "FAILED" };
     }
     const messages = contract.buildPrompt!(input, grounding);
-    const model = contract.model === "fast" ? env().LLM_MODEL_FAST : env().LLM_MODEL_DEFAULT;
+    const model = contract.model === "fast" ? ai.models.fast : ai.models.default;
     const jsonSchema = z.toJSONSchema(contract.outputSchema, { target: "draft-7", io: "input" }) as Record<
       string,
       unknown

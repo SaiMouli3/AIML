@@ -212,6 +212,29 @@ test("multi-channel: connect X and Facebook, write for X within its limit, copy 
   await expect(page.getByRole("row", { name: /Weekend drop · Facebook/ })).toBeVisible();
 });
 
+test("owner manages AI models, keys and prices in Settings; the key is never shown again", async ({
+  page,
+}) => {
+  await signupViaUi(page, "Keys Co");
+  await page.goto("/settings");
+  await page.getByRole("tab", { name: "AI models & keys" }).click();
+  await page.getByLabel("Default model").fill("claude-haiku-5.5");
+  await page.getByLabel("API key", { exact: true }).fill("sk-e2e-secret-value-WXYZ");
+  await page.getByLabel(/Gateway image model/).check();
+  await page.getByRole("button", { name: "Save AI settings" }).click();
+  await expect(page.getByText(/AI settings saved/)).toBeVisible();
+  await page.reload();
+  await page.getByRole("tab", { name: "AI models & keys" }).click();
+  await expect(page.getByLabel("Default model")).toHaveValue("claude-haiku-5.5");
+  await expect(page.getByText(/Saved ••••WXYZ/)).toBeVisible();
+  await expect(page.getByText("Workspace key")).toBeVisible();
+  expect(await page.content()).not.toContain("sk-e2e-secret-value-WXYZ");
+  const r = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
+  expect(
+    r.violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => v.id),
+  ).toEqual([]);
+});
+
 test("primary pages have no serious accessibility violations", async ({ page }) => {
   await signupViaUi(page, "A11y Co");
   for (const path of [

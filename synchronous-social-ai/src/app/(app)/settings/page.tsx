@@ -5,6 +5,7 @@ import { loadPage, serialize } from "@/server/http/page";
 import { can } from "@/server/rbac/roles";
 import { listJobs, unknownActions, usageSummary } from "@/server/services/operations";
 import { getWorkspace } from "@/server/services/workspace";
+import { getAiSettings } from "@/server/services/ai-config";
 import { SettingsClient } from "./client";
 
 export const metadata = { title: "Settings & Usage" };
@@ -17,13 +18,14 @@ export default async function SettingsPage() {
     jobs: can(ctx.role, "operations.manage") ? await listJobs(ctx) : null,
     unknown: can(ctx.role, "operations.manage") ? await unknownActions(ctx) : [],
     audit: can(ctx.role, "audit.read") ? await listAudit(ctx, { limit: 100 }) : null,
+    ai: can(ctx.role, "ai.configure") ? await getAiSettings(ctx) : null,
   }));
   const r = session.role!;
   return (
     <>
       <PageHeader
         title="Settings & Usage"
-        description="Workspace controls, budgets, usage, operations and the immutable audit log."
+        description="Workspace controls, AI models and keys, budgets, usage, operations and the immutable audit log."
       />
       <SettingsClient
         data={serialize(data!) as never}

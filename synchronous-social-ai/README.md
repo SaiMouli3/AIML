@@ -61,6 +61,15 @@ To try the full loop locally without any platform: **Integrations → Mock** on 
 
 All variables are documented in [`.env.example`](.env.example). Production requires `APP_ENV=production`, `SESSION_SECRET`, `ENCRYPTION_KEY`, an HTTPS `APP_URL` and `STORAGE_DRIVER=s3`. Mocks are disabled automatically.
 
+**Per-workspace AI settings (owner only):** Settings → **AI models & keys** lets the workspace owner override the server defaults without touching `.env`:
+
+- the gateway URL and API key (any OpenAI-compatible endpoint; Experiential Labs by default)
+- the default, fast and image models, picked from the gateway's live model list
+- the image provider (automatic, gateway image model such as Nano Banana, Higgsfield, or off) and Higgsfield keys
+- prices per model (USD per 1M tokens, one click to load the gateway's list prices) and the estimated price per image
+
+Keys are encrypted with `ENCRYPTION_KEY`, shown only as their last 4 characters and never written to the audit log. Admins and other roles cannot see or change this page.
+
 ## Layout
 
 ```

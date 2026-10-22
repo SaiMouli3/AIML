@@ -21,6 +21,7 @@ import {
 import { useAction } from "@/components/use-action";
 import { api } from "@/lib/api-client";
 import { fmtDateTime, fmtMoney, fmtRelative, sentence } from "@/lib/format";
+import { AiSettings, type AiData } from "./ai-settings";
 
 interface Data {
   workspace: {
@@ -96,6 +97,7 @@ interface Data {
       createdAt: string;
     }>;
   } | null;
+  ai: AiData | null;
 }
 
 export function SettingsClient({
@@ -121,6 +123,7 @@ export function SettingsClient({
     <Tabs defaultValue="workspace">
       <TabsList className="mb-5 flex-wrap">
         <TabsTrigger value="workspace">Workspace & safety</TabsTrigger>
+        {data.ai ? <TabsTrigger value="ai">AI models & keys</TabsTrigger> : null}
         {data.usage ? <TabsTrigger value="usage">Usage & budgets</TabsTrigger> : null}
         {data.jobs ? (
           <TabsTrigger value="ops" count={(data.jobs.counts.dead ?? 0) + data.unknown.length || undefined}>
@@ -129,6 +132,11 @@ export function SettingsClient({
         ) : null}
         {data.audit ? <TabsTrigger value="audit">Audit log</TabsTrigger> : null}
       </TabsList>
+      {data.ai ? (
+        <TabsContent value="ai">
+          <AiSettings data={data.ai} />
+        </TabsContent>
+      ) : null}
       <TabsContent value="workspace" className="space-y-6">
         <Card className={w.killSwitch ? "border-danger-600/40" : ""}>
           <CardHeader

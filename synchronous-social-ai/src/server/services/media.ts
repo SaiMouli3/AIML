@@ -10,6 +10,7 @@ import { hashPayload, sha256 } from "../lib/crypto";
 import { imageDimensions, malwareScanner, validateUpload } from "../lib/file-validation";
 import { newId } from "../lib/ids";
 import { isProviderError, ProviderError } from "../providers/errors";
+import { resolveAiConfig } from "./ai-config";
 import {
   mediaProvider,
   parseStatusPayload,
@@ -144,19 +145,34 @@ let providerOverride: MediaProvider | null | undefined;
 export function setMediaProviderForTests(p: MediaProvider | null | undefined) {
   providerOverride = p;
 }
-function provider(): MediaProvider | null {
-  return providerOverride !== undefined ? providerOverride : mediaProvider();
+/** The workspace's media provider, from its owner-managed AI settings (falling back to the server env). */
+export async function workspaceMediaProvider(
+  ctx: Pick<Ctx, "tx" | "workspaceId">,
+): Promise<MediaProvider | null> {
+  if (providerOverride !== undefined) return providerOverride;
+  const ai = await resolveAiConfig(ctx);
+  return mediaProvider({
+    imageProvider: ai.imageProvider,
+    higgsfield: ai.higgsfield,
+    gateway: {
+      baseUrl: ai.llm.baseUrl,
+      apiKey: ai.llm.apiKey,
+      imageModel: ai.models.image,
+      imagePriceUsd: ai.imagePriceUsd,
+    },
+  });
 }
 
-export function mediaProviderStatus() {
-  const p = provider();
+export async function mediaProviderStatus(ctx: Pick<Ctx, "tx" | "workspaceId">) {
+  const p = await workspaceMediaProvider(ctx);
   return p
     ? { connected: true, name: p.name, mode: p.mode }
     : {
         connected: false,
         name: "higgsfield",
         mode: null,
-        reason: "HIGGSFIELD_API_KEY_ID / HIGGSFIELD_API_KEY_SECRET are not set",
+        reason:
+          "No image provider: the owner can add Higgsfield keys or a gateway image model in Settings → AI models & keys.",
       };
 }
 
@@ -179,11 +195,11 @@ async function monthlyMediaSpend(ctx: Ctx) {
 
 export async function createGeneration(ctx: Ctx, input: z.infer<typeof generationSchema>) {
   requirePermission(ctx, "media.generate");
-  const p = provider();
+  const p = await workspaceMediaProvider(ctx);
   if (!p)
     throw new AppError(
       "INTEGRATION_NOT_CONNECTED",
-      "Higgsfield is not connected. Add API credentials on the server to enable generation.",
+      "No image provider is configured. The workspace owner can set one up in Settings → AI models & keys.",
     );
   const model = p.models().find((m) => m.id === input.modelId);
   if (!model)
@@ -296,7 +312,7 @@ export async function cancelGeneration(ctx: Ctx, id: string) {
     });
     return { canceled: true };
   }
-  const p = provider();
+  const p = await workspaceMediaProvider(ctx);
   if (!p || !job.providerRequestId) throw new AppError("INTEGRATION_NOT_CONNECTED", "Provider unavailable");
   const r = await p.cancel(job.providerRequestId);
   if (r.canceled) {
@@ -454,7 +470,7 @@ export async function applyGenerationResult(
 registerJob("media.generate", {
   async run(jc, payload) {
     const jobId = String(payload.jobId);
-    const p = provider();
+    const p = await jc.tenant((ctx) => workspaceMediaProvider(ctx));
     const job = await jc.tenant((ctx) => getGenerationRaw(ctx, jobId));
     if (!job || TERMINAL.includes(job.status as never) || job.status === "timed_out")
       return { skipped: true };
@@ -471,6 +487,21 @@ registerJob("media.generate", {
           .where(eq(s.mediaGenerationJobs.id, jobId)),
       );
       return { failed: "not_connected" };
+    }
+    // The owner switched image providers while this job was in flight: the new provider cannot see it.
+    if (job.provider !== p.name && p.name !== "mock") {
+      await jc.tenant((ctx) =>
+        ctx.tx
+          .update(s.mediaGenerationJobs)
+          .set({
+            status: "failed",
+            error: `Image provider changed from ${job.provider} to ${p.name}; start the generation again`,
+            updatedAt: new Date(),
+            completedAt: new Date(),
+          })
+          .where(eq(s.mediaGenerationJobs.id, jobId)),
+      );
+      return { failed: "provider_changed" };
     }
     if (job.timeoutAt && job.timeoutAt < new Date()) {
       await jc.tenant(async (ctx) => {
@@ -567,7 +598,7 @@ async function getGenerationRaw(ctx: Ctx, id: string) {
 
 /** Webhook path for Higgsfield terminal events. Deduplicated by request_id + terminal status. */
 export async function handleHiggsfieldWebhook(ctx: Ctx, jobId: string, body: unknown) {
-  const p = provider();
+  const p = await workspaceMediaProvider(ctx);
   if (!p) return { ignored: "provider not configured" };
   const parsed = parseStatusPayload(body);
   const job = await getGenerationRaw(ctx, jobId);
