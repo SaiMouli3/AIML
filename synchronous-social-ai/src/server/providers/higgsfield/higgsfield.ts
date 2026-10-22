@@ -3,6 +3,7 @@ import { deflateSync } from "node:zlib";
 import { z } from "zod";
 import { env } from "../../env";
 import { ProviderError } from "../errors";
+import { NanoBananaProvider } from "./nano-banana";
 
 /**
  * Media generation provider abstraction with a Higgsfield implementation.
@@ -357,6 +358,7 @@ export function mediaProvider(): MediaProvider | null {
   const e = env();
   if (e.HIGGSFIELD_API_KEY_ID && e.HIGGSFIELD_API_KEY_SECRET)
     return new HiggsfieldProvider(e.HIGGSFIELD_API_KEY_ID, e.HIGGSFIELD_API_KEY_SECRET);
+  if (e.LLM_API_KEY) return new NanoBananaProvider(e.LLM_BASE_URL, e.LLM_API_KEY);
   if (e.mocksAllowed) return new MockMediaProvider();
   return null;
 }

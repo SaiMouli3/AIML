@@ -11,7 +11,6 @@ import { imageDimensions, malwareScanner, validateUpload } from "../lib/file-val
 import { newId } from "../lib/ids";
 import { isProviderError, ProviderError } from "../providers/errors";
 import {
-  HIGGSFIELD_MODELS,
   mediaProvider,
   parseStatusPayload,
   TERMINAL,
@@ -186,7 +185,7 @@ export async function createGeneration(ctx: Ctx, input: z.infer<typeof generatio
       "INTEGRATION_NOT_CONNECTED",
       "Higgsfield is not connected. Add API credentials on the server to enable generation.",
     );
-  const model = HIGGSFIELD_MODELS.find((m) => m.id === input.modelId);
+  const model = p.models().find((m) => m.id === input.modelId);
   if (!model)
     throw new AppError(
       "VALIDATION_FAILED",
@@ -494,7 +493,7 @@ registerJob("media.generate", {
       if (job.providerRequestId) await p.cancel(job.providerRequestId).catch(() => null);
       return { timedOut: true };
     }
-    const model = HIGGSFIELD_MODELS.find((m) => m.id === job.model)!;
+    const model = p.models().find((m) => m.id === job.model)!;
     try {
       if (!job.providerRequestId) {
         const webhook =

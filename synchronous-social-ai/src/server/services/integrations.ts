@@ -29,7 +29,7 @@ import {
   MockMetaAdsAdapter,
   type MetaAdsAdapter,
 } from "../providers/meta/marketing";
-import { HIGGSFIELD_MODELS } from "../providers/higgsfield/higgsfield";
+import { mediaProvider } from "../providers/higgsfield/higgsfield";
 import {
   exchangeFacebookPagesCode,
   facebookPageCapabilities,
@@ -136,7 +136,7 @@ export async function listIntegrations(ctx: Ctx) {
       },
       higgsfield: {
         configured: integrationsConfigured.higgsfield(),
-        models: HIGGSFIELD_MODELS.map((m) => ({ id: m.id, label: m.label, kind: m.kind, docs: m.docs })),
+        models: (mediaProvider()?.models() ?? []).map((m) => ({ id: m.id, label: m.label, kind: m.kind, docs: m.docs })),
       },
       llm: {
         configured: integrationsConfigured.llm(),

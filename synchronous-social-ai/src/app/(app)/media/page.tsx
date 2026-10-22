@@ -2,7 +2,7 @@ import { PageHeader } from "@/components/ui/primitives";
 import { Forbidden } from "@/components/forbidden";
 import { loadPage, serialize } from "@/server/http/page";
 import { can } from "@/server/rbac/roles";
-import { HIGGSFIELD_MODELS } from "@/server/providers/higgsfield/higgsfield";
+import { mediaProvider } from "@/server/providers/higgsfield/higgsfield";
 import { listGenerations, listMedia, mediaProviderStatus } from "@/server/services/media";
 import { MediaClient } from "./client";
 
@@ -19,7 +19,7 @@ export default async function MediaPage() {
     { permission: "content.read" },
   );
   if (!allowed) return <Forbidden what="the Media Library" />;
-  const models = HIGGSFIELD_MODELS.map((m) => ({
+  const models = (mediaProvider()?.models() ?? []).map((m) => ({
     id: m.id,
     label: m.label,
     kind: m.kind,
